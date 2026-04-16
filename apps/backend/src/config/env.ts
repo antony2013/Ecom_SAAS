@@ -38,6 +38,10 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+
+  // Swagger Docs Auth (dev only)
+  SWAGGER_USER: z.string().default('admin'),
+  SWAGGER_PASSWORD: z.string().default('docs'),
 }).transform((env) => ({
   ...env,
   isProduction: env.NODE_ENV === 'production',

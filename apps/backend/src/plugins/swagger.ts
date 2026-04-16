@@ -1,4 +1,7 @@
 // Swagger Plugin - OpenAPI documentation with Zod schema support
+// Secured with Basic Auth — credentials from SWAGGER_USER / SWAGGER_PASSWORD env vars
+// Only available in development mode (NODE_ENV !== 'production')
+
 import fp from 'fastify-plugin';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -7,6 +10,7 @@ import { jsonSchemaTransform } from 'fastify-type-provider-zod';
 import { createRequire } from 'module';
 import path from 'path';
 import fs from 'fs';
+import { env } from '../config/env.js';
 
 // Resolve static assets path (ESM-compatible with pnpm)
 const require = createRequire(import.meta.url);
@@ -14,6 +18,35 @@ const swaggerUiDir = path.dirname(require.resolve('@fastify/swagger-ui/package.j
 const staticDir = path.join(swaggerUiDir, 'static');
 
 export default fp(async function swaggerPlugin(fastify: FastifyInstance) {
+  // ── Basic Auth middleware for /documentation ──
+  fastify.addHook('onRequest', async (request, reply) => {
+    // Only protect /documentation routes
+    if (!request.url.startsWith('/documentation')) return;
+
+    // Block entirely in production
+    if (env.isProduction) {
+      reply.status(404).send({ error: 'Not Found' });
+      return;
+    }
+
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+      reply.header('WWW-Authenticate', 'Basic realm="Swagger API Docs"');
+      reply.status(401).send({ error: 'Unauthorized', message: 'Authentication required to access API documentation' });
+      return;
+    }
+
+    const credentials = Buffer.from(authHeader.slice(6), 'base64').toString();
+    const [username, password] = credentials.split(':');
+
+    if (username !== env.SWAGGER_USER || password !== env.SWAGGER_PASSWORD) {
+      reply.header('WWW-Authenticate', 'Basic realm="Swagger API Docs"');
+      reply.status(401).send({ error: 'Unauthorized', message: 'Invalid credentials' });
+      return;
+    }
+  });
+
+  // ── Swagger spec generation ──
   await fastify.register(swagger, {
     openapi: {
       openapi: '3.0.0',
@@ -66,6 +99,7 @@ export default fp(async function swaggerPlugin(fastify: FastifyInstance) {
     transform: jsonSchemaTransform,
   });
 
+  // ── Swagger UI ──
   await fastify.register(swaggerUi, {
     routePrefix: '/documentation',
     baseDir: staticDir,
@@ -78,9 +112,7 @@ export default fp(async function swaggerPlugin(fastify: FastifyInstance) {
     staticCSP: true,
   });
 
-  // Workaround: swagger-ui fails to serve static assets in ESM + pnpm
-  // because @fastify/static resolves __dirname incorrectly.
-  // We manually serve the critical CSS and JS files that the HTML page references.
+  // ── Workaround: serve static assets manually (ESM + pnpm path issue) ──
   const contentTypes: Record<string, string> = {
     '.css': 'text/css',
     '.js': 'application/javascript',
@@ -88,8 +120,6 @@ export default fp(async function swaggerPlugin(fastify: FastifyInstance) {
     '.svg': 'image/svg+xml',
   };
 
-  // Only serve files that swagger-ui doesn't already register routes for
-  // (index.html and swagger-initializer.js are handled by the plugin itself)
   const criticalFiles = [
     'swagger-ui.css',
     'swagger-ui-bundle.js',
