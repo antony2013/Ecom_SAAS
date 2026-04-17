@@ -5,7 +5,7 @@ import {
   productVariants,
   productVariantOptions,
 } from '../db/schema.js';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, ilike, or, gte, lte } from 'drizzle-orm';
 import { ErrorCodes } from '../errors/codes.js';
 
 export const productService = {
@@ -211,5 +211,104 @@ export const productService = {
     }
 
     return option;
+  },
+
+  async search(storeId: string, opts: {
+    q?: string;
+    categoryId?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    isPublished?: boolean;
+    sort?: 'price_asc' | 'price_desc' | 'newest' | 'name_asc' | 'name_desc';
+    limit?: number;
+    offset?: number;
+  }) {
+    const limit = Math.max(1, Math.min(opts.limit ?? 20, 100));
+    const offset = Math.max(0, opts.offset ?? 0);
+
+    const conditions = [eq(products.storeId, storeId)];
+
+    if (opts.isPublished !== undefined) {
+      conditions.push(eq(products.isPublished, opts.isPublished));
+    }
+
+    if (opts.categoryId) {
+      conditions.push(eq(products.categoryId, opts.categoryId));
+    }
+
+    if (opts.minPrice) {
+      conditions.push(gte(products.salePrice, opts.minPrice));
+    }
+
+    if (opts.maxPrice) {
+      conditions.push(lte(products.salePrice, opts.maxPrice));
+    }
+
+    if (opts.q) {
+      const pattern = `%${opts.q}%`;
+      conditions.push(
+        or(
+          ilike(products.titleEn, pattern),
+          ilike(products.titleAr, pattern),
+          ilike(products.descriptionEn, pattern),
+          ilike(products.descriptionAr, pattern),
+          ilike(products.tags, pattern),
+        )!,
+      );
+    }
+
+    const where = conditions.length === 1 ? conditions[0] : and(...conditions);
+
+    // Determine sort order
+    let orderBy;
+    switch (opts.sort) {
+      case 'price_asc':
+        orderBy = asc(products.salePrice);
+        break;
+      case 'price_desc':
+        orderBy = desc(products.salePrice);
+        break;
+      case 'name_asc':
+        orderBy = asc(products.titleEn);
+        break;
+      case 'name_desc':
+        orderBy = desc(products.titleEn);
+        break;
+      case 'newest':
+      default:
+        orderBy = desc(products.createdAt);
+        break;
+    }
+
+    const [rows, totalResult] = await Promise.all([
+      db.query.products.findMany({
+        where,
+        with: {
+          category: { columns: { id: true, nameEn: true, nameAr: true, storeId: true } },
+          subcategory: { columns: { id: true, nameEn: true, nameAr: true } },
+          variants: {
+            with: { options: true },
+          },
+          modifierGroups: {
+            with: { options: true },
+          },
+        },
+        orderBy: [orderBy],
+        limit,
+        offset,
+      }),
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(products)
+        .where(where),
+    ]);
+
+    const total = totalResult[0]?.count ?? 0;
+
+    return {
+      items: rows,
+      total,
+      limit,
+      offset,
+    };
   },
 };

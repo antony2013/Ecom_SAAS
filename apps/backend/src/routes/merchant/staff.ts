@@ -85,7 +85,14 @@ export default async function merchantStaffRoutes(fastify: FastifyInstance) {
       request.userId,
     );
 
-    // TODO: Queue invitation email via emailService
+    // Queue invitation email
+    await fastify.emailService.sendEmail({
+      to: parsed.email,
+      subject: `You're invited to join as ${parsed.role}`,
+      html: `<p>You've been invited to join the store as a <strong>${parsed.role}</strong>.</p><p>Use this token to accept: <code>${invitation.token}</code></p>`,
+      text: `You've been invited to join the store as ${parsed.role}. Use this token to accept: ${invitation.token}`,
+    });
+
     reply.status(201).send({ invitation });
   });
 

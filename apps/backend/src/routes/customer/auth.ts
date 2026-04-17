@@ -71,6 +71,13 @@ export default async function customerAuthRoutes(fastify: FastifyInstance) {
       storeId,
     );
 
+    // Gate: require email verification before login
+    if (!customer.isVerified) {
+      throw Object.assign(new Error('Email not verified. Please check your inbox for the verification link.'), {
+        code: ErrorCodes.EMAIL_NOT_VERIFIED,
+      });
+    }
+
     const token = await reply.jwtSign({
       customerId: customer.id,
       storeId: customer.storeId,
@@ -235,8 +242,14 @@ export default async function customerAuthRoutes(fastify: FastifyInstance) {
       reply.status(404).send({ error: 'Not Found', code: ErrorCodes.CUSTOMER_NOT_FOUND, message: 'Customer not found' });
       return;
     }
-    await authResetService.resendVerification(customer.email, customer.storeId, 'customer');
-    // TODO: Queue verification email via emailService
+    const { token } = await authResetService.resendVerification(customer.email, customer.storeId, 'customer');
+    // Queue verification email
+    await fastify.emailService.sendEmail({
+      to: customer.email,
+      subject: 'Verify your email address',
+      html: `<p>Click the link below to verify your email address:</p><p><code>${token}</code></p>`,
+      text: `Verify your email address. Token: ${token}`,
+    });
     return { success: true, message: 'Verification email sent' };
   });
 
@@ -251,9 +264,16 @@ export default async function customerAuthRoutes(fastify: FastifyInstance) {
   }, async (request) => {
     const { email } = emailSchema.parse(request.body);
     const storeId = await resolveStoreId(request);
-    await authResetService.requestPasswordReset(email, storeId || undefined, 'customer');
-    // Always return success to prevent email enumeration
-    // TODO: Queue reset email via emailService
+    const result = await authResetService.requestPasswordReset(email, storeId || undefined, 'customer');
+    // Queue reset email if user was found (don't reveal if email exists)
+    if (result.token) {
+      await fastify.emailService.sendEmail({
+        to: email,
+        subject: 'Reset your password',
+        html: `<p>Use this token to reset your password:</p><p><code>${result.token}</code></p>`,
+        text: `Reset your password. Token: ${result.token}`,
+      });
+    }
     return { success: true, message: 'If an account with that email exists, a reset link has been sent' };
   });
 

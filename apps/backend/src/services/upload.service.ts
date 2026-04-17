@@ -1,5 +1,10 @@
-// Upload Service - File validation and S3 upload (local first, S3 later)
+// Upload Service - File validation and storage (local in dev, S3 in production)
 import { fileTypeFromBuffer } from 'file-type';
+import { writeFileSync, mkdirSync, unlinkSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client } from '@aws-sdk/client-s3';
+import { env } from '../config/env.js';
 import { ErrorCodes } from '../errors/codes.js';
 
 interface UploadOptions {
@@ -19,10 +24,32 @@ interface UploadResult {
   url: string;
 }
 
-export const createUploadService = (_options?: {
-  s3Bucket?: string;
-  s3Region?: string;
-}) => {
+// S3 client — created lazily only when S3 env vars are present
+let s3Client: S3Client | null = null;
+
+function getS3Client(): S3Client {
+  if (!s3Client) {
+    s3Client = new S3Client({
+      region: env.S3_REGION || 'us-east-1',
+      credentials: {
+        accessKeyId: env.S3_ACCESS_KEY_ID!,
+        secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
+      },
+    });
+  }
+  return s3Client;
+}
+
+const LOCAL_UPLOADS_DIR = join(process.cwd(), 'uploads');
+
+export const createUploadService = () => {
+  // Ensure local uploads directory exists
+  if (!existsSync(LOCAL_UPLOADS_DIR)) {
+    mkdirSync(LOCAL_UPLOADS_DIR, { recursive: true });
+  }
+
+  const useS3 = !!(env.S3_BUCKET && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY);
+
   return {
     async validateFile(
       buffer: Buffer,
@@ -58,20 +85,49 @@ export const createUploadService = (_options?: {
 
       const filename = `${folder}/${storeId}/${Date.now()}-${crypto.randomUUID()}.${fileType.ext}`;
 
-      // Local storage for now - S3 will be added in Phase 11
-      // For dev, return a placeholder URL
+      if (useS3) {
+        // Production: upload to S3
+        const client = getS3Client();
+        await client.send(new PutObjectCommand({
+          Bucket: env.S3_BUCKET,
+          Key: filename,
+          Body: buffer,
+          ContentType: fileType.mime,
+        }));
+
+        const url = `https://${env.S3_BUCKET}.s3.${env.S3_REGION || 'us-east-1'}.amazonaws.com/${filename}`;
+
+        return { filename, mimeType: fileType.mime, size: buffer.length, url };
+      }
+
+      // Development: save to local filesystem
+      const dirPath = join(LOCAL_UPLOADS_DIR, folder, storeId);
+      mkdirSync(dirPath, { recursive: true });
+      const localPath = join(LOCAL_UPLOADS_DIR, filename);
+      writeFileSync(localPath, buffer);
+
       const url = `/uploads/${filename}`;
 
-      return {
-        filename,
-        mimeType: fileType.mime,
-        size: buffer.length,
-        url,
-      };
+      return { filename, mimeType: fileType.mime, size: buffer.length, url };
     },
 
-    async deleteImage(_url: string): Promise<void> {
-      // S3 deletion will be implemented in Phase 11
+    async deleteImage(url: string): Promise<void> {
+      // Extract the filename/key from the URL
+      const urlPath = new URL(url, 'http://localhost').pathname;
+      const filename = urlPath.replace('/uploads/', '');
+
+      if (useS3) {
+        const client = getS3Client();
+        await client.send(new DeleteObjectCommand({
+          Bucket: env.S3_BUCKET,
+          Key: filename,
+        }));
+      } else {
+        const localPath = join(LOCAL_UPLOADS_DIR, filename);
+        if (existsSync(localPath)) {
+          unlinkSync(localPath);
+        }
+      }
     },
   };
 };

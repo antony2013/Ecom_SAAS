@@ -19,6 +19,8 @@ import { staffService } from './services/staff.service.js';
 import { shippingService } from './services/shipping.service.js';
 import { taxService } from './services/tax.service.js';
 import { addressService } from './services/address.service.js';
+import { pricingService } from './services/pricing.service.js';
+import { createEmailProcessor } from './services/emailProcessor.service.js';
 import { sql } from 'drizzle-orm';
 
 const fastify = Fastify({
@@ -44,6 +46,11 @@ fastify.decorate('staffService', staffService);
 fastify.decorate('shippingService', shippingService);
 fastify.decorate('taxService', taxService);
 fastify.decorate('addressService', addressService);
+fastify.decorate('pricingService', pricingService);
+
+// Start email worker to process queued emails
+const emailProcessor = createEmailProcessor(emailService);
+queueService.createWorker('emails', emailProcessor);
 
 // Health check endpoints (no auth)
 fastify.get('/health', async () => ({
@@ -182,11 +189,19 @@ fastify.setErrorHandler((error: unknown, _request, reply) => {
     INVALID_COUPON: 422,
     INSUFFICIENT_INVENTORY: 422,
     SHIPPING_NOT_CALCULABLE: 422,
+    // 409 Conflict
+    PRICE_MISMATCH: 409,
     // 404 (additional)
     ZONE_NOT_FOUND: 404,
     RATE_NOT_FOUND: 404,
     TAX_RATE_NOT_FOUND: 404,
     ADDRESS_NOT_FOUND: 404,
+    VARIANT_NOT_FOUND: 404,
+    MODIFIER_NOT_FOUND: 404,
+    // 422 Unprocessable
+    PRODUCT_UNAVAILABLE: 422,
+    COUPON_NOT_APPLICABLE: 422,
+    SHIPPING_OPTION_INVALID: 422,
   };
 
   // Priority: custom code mapping > Fastify's statusCode > default 500

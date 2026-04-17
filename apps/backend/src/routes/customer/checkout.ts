@@ -1,22 +1,21 @@
-// Customer Checkout Routes - Place orders
+// Customer Checkout Routes - Place orders with server-side price verification
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { orderService } from '../../services/order.service.js';
+
+const checkoutItemSchema = z.strictObject({
+  productId: z.string().uuid(),
+  quantity: z.number().int().min(1),
+  variantOptionIds: z.array(z.string().uuid()).optional(),
+  combinationKey: z.string().optional(),
+  modifierOptionIds: z.array(z.string().uuid()).optional(),
+});
 
 const checkoutSchema = z.strictObject({
   email: z.email(),
   phone: z.string().max(50).optional(),
   currency: z.string().max(3).default('USD'),
-  items: z.array(z.strictObject({
-    productId: z.string().uuid(),
-    productTitle: z.string().min(1).max(500),
-    productImage: z.string().optional(),
-    variantName: z.string().max(255).optional(),
-    quantity: z.number().int().min(1),
-    price: z.string().regex(/^\d+(\.\d{1,2})?$/),
-    total: z.string().regex(/^\d+(\.\d{1,2})?$/),
-    modifiers: z.string().optional(),
-  })).min(1),
+  items: z.array(checkoutItemSchema).min(1),
   cartId: z.string().uuid().optional(),
   billingName: z.string().max(255).optional(),
   billingFirstName: z.string().max(255).optional(),
@@ -37,8 +36,8 @@ const checkoutSchema = z.strictObject({
   shippingCountry: z.string().max(255).optional(),
   shippingPostalCode: z.string().max(20).optional(),
   paymentMethod: z.string().max(50).optional(),
-  couponId: z.string().uuid().optional(),
   couponCode: z.string().max(50).optional(),
+  shippingRateId: z.string().uuid().optional(),
   notes: z.string().max(1000).optional(),
 });
 
@@ -48,23 +47,63 @@ export default async function customerCheckoutRoutes(fastify: FastifyInstance) {
     schema: {
       tags: ['Customer Checkout'],
       summary: 'Place order',
-      description: 'Create a new order from the cart for the authenticated customer',
+      description: 'Create a new order with server-side price verification. Prices are computed from the database — do not send price or total fields.',
       security: [{ cookieAuth: [] }],
     },
   }, async (request, reply) => {
     const parsed = checkoutSchema.parse(request.body);
 
-    const subtotal = parsed.items.reduce((sum, item) => sum + parseFloat(item.total), 0).toFixed(2);
+    // Compute full pricing server-side
+    const pricing = await fastify.pricingService.computeOrderPricing({
+      storeId: request.storeId,
+      items: parsed.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        variantOptionIds: item.variantOptionIds,
+        combinationKey: item.combinationKey,
+        modifierOptionIds: item.modifierOptionIds,
+      })),
+      couponCode: parsed.couponCode,
+      customerId: request.customerId,
+      shippingAddress: {
+        country: parsed.shippingCountry ?? '',
+        state: parsed.shippingState,
+        postalCode: parsed.shippingPostalCode,
+      },
+      shippingRateId: parsed.shippingRateId,
+    });
 
+    // Build order items from server-computed pricing
+    const orderItems = pricing.items.map((item) => ({
+      productId: item.productId,
+      productTitle: item.productTitle,
+      productImage: item.productImage ?? undefined,
+      variantName: item.variantName ?? undefined,
+      quantity: item.quantityRequested,
+      price: item.effectivePrice,
+      total: item.lineTotal,
+      modifiers: (item.variantName || parsed.items.find((i) => i.productId === item.productId)?.modifierOptionIds)
+        ? JSON.stringify({
+            variantOptionIds: parsed.items.find((i) => i.productId === item.productId)?.variantOptionIds,
+            combinationKey: parsed.items.find((i) => i.productId === item.productId)?.combinationKey,
+            modifierOptionIds: parsed.items.find((i) => i.productId === item.productId)?.modifierOptionIds,
+          })
+        : undefined,
+    }));
+
+    // Create order with verified prices
     const order = await orderService.create({
       storeId: request.storeId,
       customerId: request.customerId,
       email: parsed.email,
       phone: parsed.phone,
       currency: parsed.currency,
-      subtotal,
-      total: subtotal,
-      items: parsed.items,
+      subtotal: pricing.subtotal,
+      discount: pricing.discount,
+      shipping: pricing.shipping,
+      tax: pricing.tax,
+      total: pricing.total,
+      items: orderItems,
       cartId: parsed.cartId,
       billingAddress: {
         billingName: parsed.billingName,
@@ -89,7 +128,7 @@ export default async function customerCheckoutRoutes(fastify: FastifyInstance) {
         shippingPostalCode: parsed.shippingPostalCode,
       },
       paymentMethod: parsed.paymentMethod,
-      couponId: parsed.couponId,
+      couponId: pricing.coupon?.id,
       couponCode: parsed.couponCode,
       notes: parsed.notes,
     });

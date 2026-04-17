@@ -1,9 +1,14 @@
-// Merchant Upload Routes - Image upload with validation
+// Merchant Upload Routes - Image upload and delete with validation
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { ErrorCodes } from '../../errors/codes.js';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+const deleteSchema = z.strictObject({
+  url: z.string().min(1),
+});
 
 export default async function merchantUploadRoutes(fastify: FastifyInstance) {
   // POST /api/v1/merchant/upload
@@ -52,5 +57,31 @@ export default async function merchantUploadRoutes(fastify: FastifyInstance) {
     const result = await fastify.uploadService.uploadImage(buffer, request.storeId, 'products');
 
     reply.status(201).send({ file: result });
+  });
+
+  // DELETE /api/v1/merchant/upload
+  fastify.delete('/', {
+    schema: {
+      tags: ['Merchant Upload'],
+      summary: 'Delete image',
+      description: 'Delete an uploaded image by its URL',
+      security: [{ cookieAuth: [] }],
+    },
+  }, async (request, reply) => {
+    const { url } = deleteSchema.parse(request.query);
+
+    // Security: only allow deleting URLs from our own uploads
+    if (!url.startsWith('/uploads/')) {
+      reply.status(400).send({
+        error: 'Bad Request',
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: 'Invalid URL. Only uploaded files can be deleted.',
+      });
+      return;
+    }
+
+    await fastify.uploadService.deleteImage(url);
+
+    reply.status(204).send();
   });
 }

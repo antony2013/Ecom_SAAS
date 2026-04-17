@@ -1,10 +1,20 @@
-// Public Products Routes - Browse published products
+// Public Products Routes - Browse and search published products
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { productService } from '../../services/product.service.js';
 import { ErrorCodes } from '../../errors/codes.js';
 
 const productListSchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const productSearchSchema = z.strictObject({
+  q: z.string().min(1).max(200).optional(),
+  categoryId: z.string().uuid().optional(),
+  minPrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  maxPrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  sort: z.enum(['price_asc', 'price_desc', 'newest', 'name_asc', 'name_desc']).default('newest'),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -27,6 +37,25 @@ export default async function publicProductsRoutes(fastify: FastifyInstance) {
     }
     const query = productListSchema.parse(request.query);
     const result = await productService.findByStoreId(request.storeId, {
+      ...query,
+      isPublished: true,
+    });
+    return result;
+  });
+
+  // GET /api/v1/public/products/search - Search products
+  fastify.get('/search', {
+    schema: {
+      tags: ['Public'],
+      summary: 'Search products',
+      description: 'Search and filter published products by name, description, tags, category, and price range',
+    },
+  }, async (request) => {
+    if (!request.storeId) {
+      return { items: [], total: 0, limit: 20, offset: 0 };
+    }
+    const query = productSearchSchema.parse(request.query);
+    const result = await productService.search(request.storeId, {
       ...query,
       isPublished: true,
     });

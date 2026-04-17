@@ -13,6 +13,7 @@ import type { staffService } from '../services/staff.service.js';
 import type { shippingService } from '../services/shipping.service.js';
 import type { taxService } from '../services/tax.service.js';
 import type { addressService } from '../services/address.service.js';
+import type { pricingService } from '../services/pricing.service.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -41,6 +42,7 @@ declare module 'fastify' {
     shippingService: typeof shippingService;
     taxService: typeof taxService;
     addressService: typeof addressService;
+    pricingService: typeof pricingService;
   }
 }
 

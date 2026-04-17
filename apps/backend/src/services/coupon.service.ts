@@ -3,6 +3,7 @@ import { db } from '../db/index.js';
 import { coupons } from '../db/schema.js';
 import { eq, and, desc, count } from 'drizzle-orm';
 import { ErrorCodes } from '../errors/codes.js';
+import { minDecimal } from '../lib/decimal.js';
 
 export const couponService = {
   async findByStoreId(storeId: string, opts?: { page?: number; limit?: number }) {
@@ -224,5 +225,47 @@ export const couponService = {
     }
 
     return coupon;
+  },
+
+  async calculateDiscount(
+    coupon: typeof coupons.$inferSelect,
+    subtotal: string,
+    productIds?: string[],
+  ): Promise<{ discountAmount: string; freeShipping: boolean }> {
+    // Check product applicability
+    if (coupon.appliesTo === 'products' && coupon.productIds && productIds && productIds.length > 0) {
+      const allowedIds = coupon.productIds.split(',').map((s) => s.trim());
+      const hasApplicableProduct = productIds.some((id) => allowedIds.includes(id));
+      if (!hasApplicableProduct) {
+        throw Object.assign(new Error('Coupon does not apply to these products'), {
+          code: ErrorCodes.COUPON_NOT_APPLICABLE,
+        });
+      }
+    }
+
+    let discountAmount = '0.00';
+
+    if (coupon.type === 'percentage') {
+      // discountAmount = subtotal * (value / 100), capped at maxDiscountAmount
+      const subtotalCents = Math.round(parseFloat(subtotal) * 100);
+      const percentage = parseFloat(coupon.value);
+      let discountCents = Math.round((subtotalCents * percentage) / 100);
+      if (coupon.maxDiscountAmount) {
+        const maxCents = Math.round(parseFloat(coupon.maxDiscountAmount) * 100);
+        if (discountCents > maxCents) {
+          discountCents = maxCents;
+        }
+      }
+      discountAmount = (discountCents / 100).toFixed(2);
+    } else if (coupon.type === 'fixed') {
+      // Fixed discount, capped at subtotal
+      discountAmount = minDecimal(coupon.value, subtotal);
+    }
+    // type === 'free_shipping' — no discount on subtotal, just free shipping
+
+    return {
+      discountAmount,
+      freeShipping: coupon.freeShipping || coupon.type === 'free_shipping',
+    };
   },
 };

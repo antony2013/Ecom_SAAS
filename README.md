@@ -14,6 +14,7 @@ Multi-tenant headless e-commerce platform built with **Fastify v5**, **Drizzle O
 ├─────────┴──────────┴──────────┴────────────────┤
 │              Shared Service Layer                │
 │  auth · store · product · order · cache · queue │
+│  pricing · coupon · shipping · tax · upload     │
 ├─────────────────────────────────────────────────┤
 │         PostgreSQL    │    Redis (ioredis)       │
 │       (Drizzle ORM)   │   (cache + BullMQ)      │
@@ -24,9 +25,9 @@ Multi-tenant headless e-commerce platform built with **Fastify v5**, **Drizzle O
 
 | Scope | Prefix | Auth | Purpose |
 |---|---|---|---|
-| **Public** | `/api/v1/public` | None | Storefront browsing, cart, product search |
+| **Public** | `/api/v1/public` | None (Host header) | Storefront browsing, cart, search |
 | **Merchant** | `/api/v1/merchant` | JWT (storeId + userId) | Store management, products, orders |
-| **Customer** | `/api/v1/customer` | JWT (customerId + storeId) | Wishlist, orders, reviews, checkout |
+| **Customer** | `/api/v1/merchant` | JWT (customerId + storeId) | Checkout, orders, wishlist, reviews |
 | **SuperAdmin** | `/api/v1/admin` | JWT (superAdminId) | Platform admin, merchant approval, plans |
 
 Each scope is a Fastify encapsulated context with its own `onRequest` auth hook. Hooks skip only login/register/logout routes — all other routes (including `/me`) are protected.
@@ -38,13 +39,14 @@ Each scope is a Fastify encapsulated context with its own `onRequest` auth hook.
 | Runtime | Node.js | 22+ |
 | Framework | Fastify | v5.8+ |
 | ORM | Drizzle ORM | v0.45+ |
-| Database | PostgreSQL | 16 |
-| Cache/Queue | Redis (ioredis + BullMQ) | v5 |
-| Validation | Zod | v4 |
+| Database | PostgreSQL | 17 |
+| Cache/Queue | Redis (ioredis + BullMQ) | v7 |
+| Validation | Zod | v4.1+ |
 | Auth | @fastify/jwt + httpOnly cookies | v10 |
 | Language | TypeScript (ESM) | v5.8+ |
 | Build | Turborepo + pnpm | monorepo |
-| File Upload | @fastify/multipart | v10 |
+| File Upload | @fastify/multipart + @aws-sdk/client-s3 | v10 |
+| Email | Resend + BullMQ | v6 |
 
 ## Quick Start
 
@@ -69,22 +71,17 @@ pnpm install
 docker compose up -d
 ```
 
-This starts PostgreSQL (port 5432) and Redis (port 6379).
+This starts PostgreSQL 17 (port 5432) and Redis 7 (port 6379).
 
 ### 3. Configure Environment
 
 ```bash
 cp .env.example .env
-cp apps/backend/.env.example apps/backend/.env
 ```
 
-Generate a JWT secret:
+Edit `.env` — set `JWT_SECRET` (generate with `openssl rand -base64 48`).
 
-```bash
-openssl rand -base64 48
-```
-
-Update `JWT_SECRET` in `apps/backend/.env` with the generated value.
+For production CORS, set `CORS_ORIGINS` (comma-separated origins, supports wildcards like `*.myplatform.com`).
 
 ### 4. Run Database Migrations
 
@@ -129,16 +126,19 @@ curl http://localhost:3000/health/ready
 
 ## API Endpoints
 
-### Public (no auth)
+### Public (no auth, store resolved from Host header)
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/v1/public/store` | Store info (by Host header) |
-| GET | `/api/v1/public/products` | Published products |
+| GET | `/api/v1/public/store` | Store info |
+| GET | `/api/v1/public/products` | Published products (paginated) |
+| GET | `/api/v1/public/products/search` | Search products (q, category, price range, sort) |
 | GET | `/api/v1/public/products/:id` | Single product |
 | GET | `/api/v1/public/reviews/product/:id` | Product reviews |
-| GET | `/api/v1/public/analytics` | Limited public stats |
 | GET/POST/PATCH/DELETE | `/api/v1/public/cart[/*]` | Guest cart (cookie-based) |
+| POST | `/api/v1/public/shipping/calculate` | Calculate shipping |
+| POST | `/api/v1/public/tax/calculate` | Calculate tax |
+| POST | `/api/v1/public/analytics` | Track analytics event |
 
 ### Merchant (JWT auth)
 
@@ -147,9 +147,12 @@ curl http://localhost:3000/health/ready
 | POST | `/api/v1/merchant/auth/login` | Login |
 | POST | `/api/v1/merchant/auth/register` | Register store |
 | POST | `/api/v1/merchant/auth/logout` | Logout |
+| POST | `/api/v1/merchant/auth/forgot-password` | Request password reset |
+| POST | `/api/v1/merchant/auth/reset-password` | Reset password |
 | GET | `/api/v1/merchant/auth/me` | Current user |
 | GET/PATCH | `/api/v1/merchant/store` | Store settings |
 | CRUD | `/api/v1/merchant/products[/*]` | Products + variants + options |
+| GET | `/api/v1/merchant/products/search` | Search products (includes unpublished) |
 | CRUD | `/api/v1/merchant/categories[/*]` | Categories + subcategories |
 | CRUD | `/api/v1/merchant/modifiers[/*]` | Modifier groups + options |
 | GET/PATCH/DELETE | `/api/v1/merchant/orders[/*]` | Order management |
@@ -158,22 +161,31 @@ curl http://localhost:3000/health/ready
 | CRUD | `/api/v1/merchant/coupons[/*]` | Coupon management |
 | GET | `/api/v1/merchant/analytics/dashboard` | Dashboard stats |
 | GET | `/api/v1/merchant/analytics/revenue` | Revenue data |
-| POST | `/api/v1/merchant/upload` | File upload |
+| POST | `/api/v1/merchant/upload` | Upload image |
+| DELETE | `/api/v1/merchant/upload` | Delete image |
+| CRUD | `/api/v1/merchant/staff[/*]` | Staff management + invitations |
+| CRUD | `/api/v1/merchant/shipping[/*]` | Shipping zones + rates |
+| CRUD | `/api/v1/merchant/tax[/*]` | Tax rates |
 
 ### Customer (JWT auth)
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/v1/customer/auth/login` | Login |
+| POST | `/api/v1/customer/auth/login` | Login (requires email verification) |
 | POST | `/api/v1/customer/auth/register` | Register |
 | POST | `/api/v1/customer/auth/logout` | Logout |
+| POST | `/api/v1/customer/auth/verify-email` | Verify email |
+| POST | `/api/v1/customer/auth/resend-verification` | Resend verification |
+| POST | `/api/v1/customer/auth/forgot-password` | Request password reset |
+| POST | `/api/v1/customer/auth/reset-password` | Reset password |
 | GET | `/api/v1/customer/auth/me` | Profile |
 | GET/PATCH | `/api/v1/customer/profile` | Profile management |
 | GET | `/api/v1/customer/orders` | Order history |
 | GET | `/api/v1/customer/orders/:id` | Order detail |
-| POST | `/api/v1/customer/checkout` | Place order |
+| POST | `/api/v1/customer/checkout` | Place order (server-side pricing) |
 | GET/POST/DELETE | `/api/v1/customer/wishlist[/*]` | Wishlist |
 | CRUD | `/api/v1/customer/reviews[/*]` | Reviews |
+| CRUD | `/api/v1/customer/addresses[/*]` | Address book |
 
 ### SuperAdmin (JWT auth)
 
@@ -189,82 +201,28 @@ curl http://localhost:3000/health/ready
 | PATCH | `/api/v1/admin/merchants/:id/reactivate` | Reactivate store |
 | CRUD | `/api/v1/admin/plans[/*]` | Plan management |
 | GET/PATCH | `/api/v1/admin/stores[/*]` | Store management |
-| GET | `/api/v1/admin/stores/stats` | Platform statistics |
-
-## Project Structure
-
-```
-apps/backend/src/
-├── config/
-│   └── env.ts                  # Zod-validated env vars
-├── db/
-│   ├── schema.ts               # Drizzle schema (24 tables)
-│   ├── seed.ts                 # Comprehensive seed script
-│   └── index.ts                # DB connection
-├── errors/
-│   └── codes.ts                # Standardized error codes
-├── plugins/
-│   ├── cors.ts                 # @fastify/cors
-│   ├── jwt.ts                  # @fastify/jwt
-│   ├── redis.ts                # ioredis connection
-│   ├── rateLimit.ts            # @fastify/rate-limit
-│   ├── swagger.ts              # @fastify/swagger
-│   ├── multipart.ts            # @fastify/multipart
-│   ├── compress.ts             # @fastify/compress
-│   ├── helmet.ts               # @fastify/helmet
-│   ├── sensible.ts             # @fastify/sensible
-│   └── index.ts                # Plugin registry
-├── scopes/
-│   ├── public.ts               # Public scope (no auth)
-│   ├── merchant.ts             # Merchant scope + auth hook
-│   ├── customer.ts             # Customer scope + auth hook
-│   └── superAdmin.ts           # SuperAdmin scope + auth hook
-├── routes/
-│   ├── public/                 # Store, products, reviews, cart, analytics
-│   ├── merchant/               # Auth, store, products, categories, modifiers,
-│   │                           # orders, customers, reviews, coupons, analytics, upload
-│   ├── customer/               # Auth, profile, orders, checkout, wishlist, reviews
-│   └── superAdmin/             # Auth, merchants, plans, stores
-├── services/
-│   ├── auth.service.ts         # Password hashing, JWT verification
-│   ├── store.service.ts        # Store CRUD
-│   ├── product.service.ts      # Product CRUD + variants
-│   ├── order.service.ts        # Order management
-│   ├── customer.service.ts     # Customer management
-│   ├── category.service.ts     # Category CRUD
-│   ├── modifier.service.ts     # Modifier groups
-│   ├── review.service.ts       # Review management
-│   ├── coupon.service.ts       # Coupon validation
-│   ├── analytics.service.ts    # Dashboard + revenue stats
-│   ├── superAdmin.service.ts   # Platform admin operations
-│   ├── upload.service.ts       # File upload validation
-│   ├── cache.service.ts        # Redis caching (getOrSet)
-│   ├── queue.service.ts        # BullMQ job queues
-│   ├── email.service.ts        # Resend email
-│   └── index.ts                # Service barrel export
-├── types/
-│   └── fastify.d.ts            # Request type augmentation
-├── seed-superadmin.ts          # SuperAdmin-only seed script
-└── index.ts                    # App entry (≤60 lines)
-```
 
 ## Security
 
 - **JWT in httpOnly cookies** — tokens never exposed to JavaScript
+- **Server-side price verification** — checkout computes all prices from DB; clients cannot submit arbitrary prices
+- **Email verification gate** — customers must verify email before login
 - **Tenant isolation** — storeId from JWT only, never from request body
 - **Scope encapsulation** — auth hooks scoped to their routes only
 - **Zod `strictObject()`** — rejects unknown keys on all route bodies
-- **Helmet + CORS** — security headers configured
+- **Helmet + CORS** — security headers + configurable production origins (`CORS_ORIGINS` env var)
 - **Rate limiting** — per-IP throttling via @fastify/rate-limit
 - **Error codes** — standardized `ErrorCodes` for programmatic handling
 - **Password leak prevention** — `columns: {...}` pattern excludes passwords from relations
 - **Cross-tenant protection** — storeId filter on all data mutations
+- **Race-condition-safe inventory** — `WHERE currentQuantity >= quantity` prevents overselling
+- **Coupon re-validation** — usage limits checked inside transaction to prevent race conditions
 
 ## Database Schema
 
-24 tables covering the full e-commerce domain:
+30 tables covering the full e-commerce domain:
 
-`superAdmins` · `merchantPlans` · `stores` · `users` · `categories` · `subcategories` · `products` · `productVariants` · `productVariantOptions` · `productVariantCombinations` · `modifierGroups` · `modifierOptions` · `customers` · `customerAddresses` · `orders` · `orderItems` · `reviews` · `wishlists` · `carts` · `cartItems` · `coupons` · `emailTemplates` · `activityLogs` · `storeAnalytics`
+`superAdmins` · `merchantPlans` · `stores` · `users` · `categories` · `subcategories` · `products` · `productVariants` · `productVariantOptions` · `productVariantCombinations` · `modifierGroups` · `modifierOptions` · `customers` · `customerAddresses` · `orders` · `orderItems` · `reviews` · `wishlists` · `carts` · `cartItems` · `coupons` · `emailTemplates` · `activityLogs` · `storeAnalytics` · `verificationTokens` · `staffInvitations` · `rolePermissions` · `shippingZones` · `shippingRates` · `taxRates`
 
 Run Drizzle Studio to explore:
 
@@ -297,7 +255,7 @@ Stores are resolved via the `Host` header:
 
 ```
 # Request to techgear.localhost:3000
-GET /api/v1/public/products
+GET /api/v1/public/products/search?q=headphones
 Host: techgear.localhost:3000
 → Resolves to TechGear Pro store
 
@@ -313,6 +271,13 @@ For local development, add entries to `/etc/hosts`:
 127.0.0.1 techgear.localhost
 127.0.0.1 fashionhouse.localhost
 ```
+
+## Production Deployment
+
+- **CORS**: Set `CORS_ORIGINS` env var with comma-separated allowed origins. Supports wildcard subdomains (e.g., `*.myplatform.com,https://admin.myplatform.com`).
+- **File Upload**: Set `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` for S3 uploads. Without these, files are stored locally in `uploads/`.
+- **Email**: Set `RESEND_API_KEY` and `FROM_EMAIL` for email delivery (verification, password reset, staff invitations).
+- **Payment**: Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` for Stripe integration (pending implementation).
 
 ## License
 

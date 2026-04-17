@@ -191,9 +191,16 @@ export default async function merchantAuthRoutes(fastify: FastifyInstance) {
     },
   }, async (request) => {
     const { email } = emailSchema.parse(request.body);
-    await authResetService.requestPasswordReset(email, undefined, 'merchant');
-    // Always return success to prevent email enumeration
-    // TODO: Queue reset email via emailService
+    const result = await authResetService.requestPasswordReset(email, undefined, 'merchant');
+    // Queue reset email if user was found (don't reveal if email exists)
+    if (result.token) {
+      await fastify.emailService.sendEmail({
+        to: email,
+        subject: 'Reset your password',
+        html: `<p>Use this token to reset your password:</p><p><code>${result.token}</code></p>`,
+        text: `Reset your password. Token: ${result.token}`,
+      });
+    }
     return { success: true, message: 'If an account with that email exists, a reset link has been sent' };
   });
 

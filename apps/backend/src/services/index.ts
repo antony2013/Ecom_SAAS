@@ -16,3 +16,4 @@ export { reviewService } from './review.service.js';
 export { couponService } from './coupon.service.js';
 export { analyticsService } from './analytics.service.js';
 export { superAdminService } from './superAdmin.service.js';
+export { pricingService } from './pricing.service.js';

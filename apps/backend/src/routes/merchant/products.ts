@@ -91,6 +91,17 @@ const idParamSchema = z.strictObject({
   id: z.string().uuid(),
 });
 
+const merchantSearchSchema = z.strictObject({
+  q: z.string().min(1).max(200).optional(),
+  categoryId: z.string().uuid().optional(),
+  minPrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  maxPrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  isPublished: z.enum(['true', 'false']).optional().transform((v) => v === 'true' ? true : v === 'false' ? false : undefined),
+  sort: z.enum(['price_asc', 'price_desc', 'newest', 'name_asc', 'name_desc']).default('newest'),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 export default async function merchantProductsRoutes(fastify: FastifyInstance) {
   // GET /api/v1/merchant/products
   fastify.get('/', {
@@ -103,6 +114,20 @@ export default async function merchantProductsRoutes(fastify: FastifyInstance) {
   }, async (request) => {
     const query = listQuerySchema.parse(request.query);
     const result = await productService.findByStoreId(request.storeId, query);
+    return result;
+  });
+
+  // GET /api/v1/merchant/products/search
+  fastify.get('/search', {
+    schema: {
+      tags: ['Merchant Products'],
+      summary: 'Search products',
+      description: 'Search and filter products by name, description, tags, category, and price range. Includes unpublished products.',
+      security: [{ cookieAuth: [] }],
+    },
+  }, async (request) => {
+    const query = merchantSearchSchema.parse(request.query);
+    const result = await productService.search(request.storeId, query);
     return result;
   });
 

@@ -5,12 +5,14 @@ import { db } from '../../db/index.js';
 import { carts, cartItems } from '../../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { ErrorCodes } from '../../errors/codes.js';
+import { addDecimals, multiplyDecimalByInt } from '../../lib/decimal.js';
 
 const addItemSchema = z.strictObject({
   productId: z.string().uuid(),
   quantity: z.number().int().min(1).default(1),
-  price: z.string().regex(/^\d+(\.\d{1,2})?$/),
-  modifiers: z.string().optional(),
+  variantOptionIds: z.array(z.string().uuid()).optional(),
+  combinationKey: z.string().optional(),
+  modifierOptionIds: z.array(z.string().uuid()).optional(),
 });
 
 const updateItemSchema = z.strictObject({
@@ -26,7 +28,10 @@ async function updateCartTotals(cartId: string) {
     where: eq(cartItems.cartId, cartId),
   });
 
-  const subtotal = items.reduce((sum, item) => sum + parseFloat(item.total), 0).toFixed(2);
+  let subtotal = '0.00';
+  for (const item of items) {
+    subtotal = addDecimals(subtotal, item.total);
+  }
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   await db
@@ -92,7 +97,7 @@ export default async function publicCartRoutes(fastify: FastifyInstance) {
     schema: {
       tags: ['Public'],
       summary: 'Add item to cart',
-      description: 'Add a product item to the guest cart, creating the cart if needed',
+      description: 'Add a product item to the guest cart with server-side price verification. Prices are computed from the database.',
     },
   }, async (request, reply) => {
     if (!request.storeId) {
@@ -122,17 +127,50 @@ export default async function publicCartRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Check if item already exists in cart
-    const existingItem = await db.query.cartItems.findFirst({
-      where: and(
-        eq(cartItems.cartId, cartId),
-        eq(cartItems.productId, parsed.productId),
-      ),
+    // Compute verified price for this item
+    const itemPricing = await fastify.pricingService.computeItemPrice({
+      storeId: request.storeId,
+      productId: parsed.productId,
+      variantOptionIds: parsed.variantOptionIds,
+      combinationKey: parsed.combinationKey,
+      modifierOptionIds: parsed.modifierOptionIds,
+      quantity: parsed.quantity,
+    });
+
+    const price = itemPricing.effectivePrice;
+    const itemTotal = itemPricing.lineTotal;
+
+    // Check if item with same productId + variant + modifiers already exists in cart
+    const existingItems = await db.query.cartItems.findMany({
+      where: and(eq(cartItems.cartId, cartId), eq(cartItems.productId, parsed.productId)),
+    });
+
+    // Match by modifiers JSON to differentiate same product with different options
+    const modifiersJson = (parsed.variantOptionIds || parsed.modifierOptionIds)
+      ? JSON.stringify({
+          variantOptionIds: parsed.variantOptionIds,
+          combinationKey: parsed.combinationKey,
+          modifierOptionIds: parsed.modifierOptionIds,
+        })
+      : null;
+
+    const existingItem = existingItems.find((item) => {
+      if (!modifiersJson && !item.modifiers) return true;
+      if (modifiersJson && item.modifiers) {
+        try {
+          const existing = typeof item.modifiers === 'string' ? JSON.parse(item.modifiers) : item.modifiers;
+          const incoming = JSON.parse(modifiersJson);
+          return JSON.stringify(existing) === JSON.stringify(incoming);
+        } catch {
+          return false;
+        }
+      }
+      return false;
     });
 
     if (existingItem) {
       const newQuantity = existingItem.quantity + parsed.quantity;
-      const newTotal = (parseFloat(parsed.price) * newQuantity).toFixed(2);
+      const newTotal = multiplyDecimalByInt(price, newQuantity);
       const [updated] = await db
         .update(cartItems)
         .set({
@@ -153,14 +191,13 @@ export default async function publicCartRoutes(fastify: FastifyInstance) {
     }
 
     // Add new item
-    const itemTotal = (parseFloat(parsed.price) * parsed.quantity).toFixed(2);
     const [item] = await db.insert(cartItems).values({
       cartId,
       productId: parsed.productId,
       quantity: parsed.quantity,
-      price: parsed.price,
+      price,
       total: itemTotal,
-      modifiers: parsed.modifiers,
+      modifiers: modifiersJson,
     }).returning();
 
     await updateCartTotals(cartId);
@@ -198,7 +235,8 @@ export default async function publicCartRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    const newTotal = (parseFloat(item.price) * parsed.quantity).toFixed(2);
+    // Recompute total from stored (server-verified) price × new quantity
+    const newTotal = multiplyDecimalByInt(item.price, parsed.quantity);
     const [updated] = await db
       .update(cartItems)
       .set({

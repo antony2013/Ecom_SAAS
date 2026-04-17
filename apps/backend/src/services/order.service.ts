@@ -185,15 +185,28 @@ export const orderService = {
         );
       }
 
-      // Update product quantities (scoped to store)
+      // Update product quantities (scoped to store) with race-condition guard
       for (const item of data.items) {
-        await tx
+        const result = await tx
           .update(products)
           .set({
             currentQuantity: sql`${products.currentQuantity} - ${item.quantity}`,
             updatedAt: new Date(),
           })
-          .where(and(eq(products.id, item.productId), eq(products.storeId, data.storeId)));
+          .where(
+            and(
+              eq(products.id, item.productId),
+              eq(products.storeId, data.storeId),
+              sql`${products.currentQuantity} >= ${item.quantity}`,
+            ),
+          )
+          .returning();
+
+        if (result.length === 0) {
+          throw Object.assign(new Error('Insufficient inventory'), {
+            code: ErrorCodes.INSUFFICIENT_INVENTORY,
+          });
+        }
       }
 
       // Clear the cart if cartId is provided
@@ -212,8 +225,22 @@ export const orderService = {
           .where(eq(carts.id, data.cartId));
       }
 
-      // Increment coupon usage count if a coupon was applied
+      // Increment coupon usage count if a coupon was applied (with re-validation)
       if (data.couponId) {
+        const coupon = await tx.query.coupons.findFirst({
+          where: eq(coupons.id, data.couponId),
+        });
+
+        if (!coupon) {
+          throw Object.assign(new Error('Invalid coupon'), { code: ErrorCodes.INVALID_COUPON });
+        }
+
+        if (coupon.usageLimit !== null && (coupon.usageCount ?? 0) >= coupon.usageLimit) {
+          throw Object.assign(new Error('Coupon usage limit reached'), {
+            code: ErrorCodes.COUPON_USAGE_EXCEEDED,
+          });
+        }
+
         await tx
           .update(coupons)
           .set({
