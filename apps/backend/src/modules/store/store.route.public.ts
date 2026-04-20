@@ -22,7 +22,7 @@ export default async function publicStoreRoutes(fastify: FastifyInstance) {
     }
 
     // Strip sensitive owner fields
-    const { ownerEmail, ownerName, ownerPhone, ...publicStore } = store;
+    const { ownerEmail: _ownerEmail, ownerName: _ownerName, ownerPhone: _ownerPhone, ...publicStore } = store;
     return { store: publicStore };
   });
 }

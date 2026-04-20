@@ -1,5 +1,5 @@
 import { apiFetch } from './client.js';
-import type { ProductSearchResult, Product, SearchResponse, Cart, Store } from '@repo/shared-types';
+import type { ProductSearchResult, Product, Cart, Store } from '@repo/shared-types';
 
 export const storeKeys = {
   all: ['store'] as const,

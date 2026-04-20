@@ -3,7 +3,7 @@ import type { Cart, CartItem } from '@repo/shared-types';
 // Simple reactive cart state using Svelte 5 runes pattern
 // This module is imported into components that need cart state
 
-let cartState = $state<{
+const cartState = $state<{
   cart: Cart | null;
   loading: boolean;
   drawerOpen: boolean;

@@ -192,7 +192,7 @@ export const pricingService = {
         // Percentage discount: effectivePrice * discount / 100
         const priceCents = Math.round(parseFloat(effectivePrice) * 100);
         const percentage = parseFloat(product.discount);
-        let discountCents = Math.round((priceCents * percentage) / 100);
+        const discountCents = Math.round((priceCents * percentage) / 100);
         discountAmount = (discountCents / 100).toFixed(2);
         // Cap discount at the effective price
         if (parseFloat(discountAmount) > parseFloat(effectivePrice)) {

@@ -21,6 +21,11 @@
   const discLabel = $derived(hasDiscount ? discountLabel(product.discountType, product.discount) : '');
   const themeType = $derived(data.themeType ?? 'appliances');
 
+  // JSON-LD structured data (split <script> tag to avoid parser confusion)
+  const jsonLdHtml = $derived(
+    '<' + 'script type="application/ld+json">' + JSON.stringify(data.jsonLd) + '</' + 'script>',
+  );
+
   // Selected variant/modifier state
   let selectedVariantOptionIds = $state<string[]>([]);
   let selectedCombinationKey = $state<string>('');
@@ -57,7 +62,7 @@
 <svelte:head>
   <title>{product.titleEn} | {data.store?.name ?? 'Store'}</title>
   <meta name="description" content={product.descriptionEn ?? product.titleEn} />
-  {@html `<script type="application/ld+json">${JSON.stringify(data.jsonLd)}</script>`}
+  {@html jsonLdHtml}
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

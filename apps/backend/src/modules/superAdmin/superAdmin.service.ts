@@ -12,7 +12,7 @@ export const superAdminService = {
     const { data, total } = await superAdminRepo.findStores({ page, limit, status: opts?.status });
 
     // Strip sensitive fields
-    const sanitized = data.map(({ ownerEmail, ownerName, ownerPhone, ...rest }) => rest);
+    const sanitized = data.map(({ ownerEmail: _ownerEmail, ownerName: _ownerName, ownerPhone: _ownerPhone, ...rest }) => rest);
 
     return {
       data: sanitized,

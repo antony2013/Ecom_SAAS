@@ -28,7 +28,7 @@
   try {
     const raw = typeof window !== 'undefined' ? sessionStorage.getItem('checkout_shipping') : null;
     if (raw) shippingState = JSON.parse(raw);
-  } catch {}
+  } catch { /* ignore parse errors */ }
 
   // Calculate tax on mount
   $effect(() => {

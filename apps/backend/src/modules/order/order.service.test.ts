@@ -28,7 +28,7 @@ vi.mock('./order.repo.js', () => ({
 const mockTx = {} as any;
 vi.mock('../../db/index.js', () => ({
   db: {
-    transaction: vi.fn((cb: Function) => cb(mockTx)) as any,
+    transaction: vi.fn((cb: (tx: unknown) => unknown) => cb(mockTx)) as any,
   },
 }));
 
@@ -82,7 +82,7 @@ const mockCoupon = {
 beforeEach(() => {
   vi.clearAllMocks();
   // Reset db.transaction to default behavior (calls callback with mockTx)
-  (mockDb.transaction as any).mockImplementation((cb: Function) => cb(mockTx));
+  (mockDb.transaction as any).mockImplementation((cb: (tx: unknown) => unknown) => cb(mockTx));
 });
 
 // ═══════════════════════════════════════════

@@ -15,7 +15,7 @@ export default async function merchantStoreRoutes(fastify: FastifyInstance) {
   }, async (request) => {
     const store = await storeService.findByIdOrFail(request.storeId);
     // Strip sensitive owner fields from response
-    const { ownerEmail, ownerName, ownerPhone, ...publicStore } = store;
+    const { ownerEmail: _ownerEmail, ownerName: _ownerName, ownerPhone: _ownerPhone, ...publicStore } = store;
     return { store: publicStore };
   });
 
@@ -31,7 +31,7 @@ export default async function merchantStoreRoutes(fastify: FastifyInstance) {
     const parsed = updateStoreSchema.parse(request.body);
     const store = await storeService.update(request.storeId, parsed);
 
-    const { ownerEmail, ownerName, ownerPhone, ...publicStore } = store;
+    const { ownerEmail: _ownerEmail, ownerName: _ownerName, ownerPhone: _ownerPhone, ...publicStore } = store;
     return { store: publicStore };
   });
 }

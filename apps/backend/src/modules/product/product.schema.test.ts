@@ -182,19 +182,19 @@ describe('createProductSchema', () => {
   });
 
   it('rejects missing categoryId', () => {
-    const { categoryId, ...without } = validInput;
+    const { categoryId: _categoryId, ...without } = validInput;
     const result = createProductSchema.safeParse(without);
     expect(result.success).toBe(false);
   });
 
   it('rejects missing titleEn', () => {
-    const { titleEn, ...without } = validInput;
+    const { titleEn: _titleEn, ...without } = validInput;
     const result = createProductSchema.safeParse(without);
     expect(result.success).toBe(false);
   });
 
   it('rejects missing salePrice', () => {
-    const { salePrice, ...without } = validInput;
+    const { salePrice: _salePrice, ...without } = validInput;
     const result = createProductSchema.safeParse(without);
     expect(result.success).toBe(false);
   });

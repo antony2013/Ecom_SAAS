@@ -25,7 +25,7 @@
     if (rawShipping) shippingInfo = JSON.parse(rawShipping);
     const rawPayment = typeof window !== 'undefined' ? sessionStorage.getItem('checkout_payment') : null;
     if (rawPayment) paymentInfo = JSON.parse(rawPayment);
-  } catch {}
+  } catch { /* ignore parse errors */ }
 
   let tax = $derived(paymentInfo.tax ?? '0');
   let couponDiscount = $derived(paymentInfo.couponDiscount ?? '0');

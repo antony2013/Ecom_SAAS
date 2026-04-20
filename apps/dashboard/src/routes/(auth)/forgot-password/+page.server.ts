@@ -21,7 +21,7 @@ export const actions: Actions = {
 			return fail(400, { form, success: false });
 		}
 
-		const res = await apiFetch('/api/v1/merchant/auth/forgot-password', {
+		const _res = await apiFetch('/api/v1/merchant/auth/forgot-password', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(form.data),

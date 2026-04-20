@@ -1,11 +1,9 @@
 import type { PageServerLoad } from './$types.js';
-import { apiFetch } from '$lib/server/api.js';
-import { forwardCookies } from '@repo/shared-utils/cookies';
-import type { Product, Category } from '@repo/shared-types';
+import type { Product } from '@repo/shared-types';
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
 
-export const load: PageServerLoad = async ({ parent, fetch, cookies, url }) => {
+export const load: PageServerLoad = async ({ parent, fetch, url }) => {
   const parentData = await parent();
   const { store } = parentData;
 
