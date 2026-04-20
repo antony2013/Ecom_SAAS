@@ -20,9 +20,8 @@
   type ResetPasswordForm = z.infer<typeof resetPasswordSchema>;
 
   let { data }: { data: PageData } = $props();
-  const formInit = data.form;
 
-  const sf = superForm(formInit, {
+  const sf = superForm(data.form, {
     delayMs: 300,
     dataType: 'form',
   });

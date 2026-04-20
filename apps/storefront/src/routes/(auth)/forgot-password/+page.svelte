@@ -19,9 +19,8 @@
   type EmailForm = z.infer<typeof emailSchema>;
 
   let { data }: { data: PageData } = $props();
-  const formInit = data.form;
 
-  const sf = superForm(formInit, {
+  const sf = superForm(data.form, {
     delayMs: 300,
     dataType: 'form',
   });
@@ -31,7 +30,7 @@
   const enhance = sf.enhance;
   const message = sf.message;
 
-  let submitted = $state(data.submitted ?? false);
+  let submitted = $derived(data.submitted ?? false);
 
   const isSubmitted = $derived(
     submitted ||

@@ -18,8 +18,8 @@
   let error = $state('');
 
   // Retrieve checkout state from sessionStorage
-  let shippingInfo: any = {};
-  let paymentInfo: any = {};
+  let shippingInfo = $state<any>({});
+  let paymentInfo = $state<any>({});
   try {
     const rawShipping = typeof window !== 'undefined' ? sessionStorage.getItem('checkout_shipping') : null;
     if (rawShipping) shippingInfo = JSON.parse(rawShipping);

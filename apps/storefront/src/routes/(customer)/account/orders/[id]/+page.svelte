@@ -6,7 +6,7 @@
   import { ArrowLeft } from '@lucide/svelte';
 
   let { data }: { data: PageData } = $props();
-  const order = data.order;
+  const order = $derived(data.order);
 
   const statusSteps = ['pending', 'processing', 'shipped', 'delivered'];
   const currentStep = statusSteps.indexOf(order.status);

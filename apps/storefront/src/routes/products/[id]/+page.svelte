@@ -12,14 +12,14 @@
 
   let { data }: { data: PageData } = $props();
 
-  const product = data.product;
-  const images = parseImages(product.images);
-  const hasDiscount = parseFloat(product.discount) > 0;
-  const discountedPrice = hasDiscount
+  const product = $derived(data.product);
+  const images = $derived(parseImages(product.images));
+  const hasDiscount = $derived(parseFloat(product.discount) > 0);
+  const discountedPrice = $derived(hasDiscount
     ? calcDiscountedPrice(product.salePrice, product.discountType, product.discount)
-    : parseFloat(product.salePrice);
-  const discLabel = hasDiscount ? discountLabel(product.discountType, product.discount) : '';
-  const themeType = data.themeType ?? 'appliances';
+    : parseFloat(product.salePrice));
+  const discLabel = $derived(hasDiscount ? discountLabel(product.discountType, product.discount) : '');
+  const themeType = $derived(data.themeType ?? 'appliances');
 
   // Selected variant/modifier state
   let selectedVariantOptionIds = $state<string[]>([]);

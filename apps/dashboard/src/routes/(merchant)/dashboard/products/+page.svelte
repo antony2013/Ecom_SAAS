@@ -20,7 +20,7 @@
 
 	let { data } = $props();
 
-	let searchValue = $state(data.search || '');
+	let searchValue = $state(data?.search || '');
 	let deleting = $state<string | null>(null);
 
 	const products = $derived(data.products?.products || []);

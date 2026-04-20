@@ -6,7 +6,7 @@
   import { Switch } from '$lib/components/ui/switch/index.js';
 
   let { data }: { data: PageData } = $props();
-  const customer = data.customer;
+  const customer = $derived(data.customer);
 
   let firstName = $state(customer?.firstName ?? '');
   let lastName = $state(customer?.lastName ?? '');
