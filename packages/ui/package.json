@@ -1,0 +1,46 @@
+{
+  "name": "@repo/ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "svelte": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "svelte": "./src/index.ts"
+    },
+    "./themes": {
+      "types": "./src/themes/index.ts",
+      "svelte": "./src/themes/index.ts"
+    },
+    "./tokens": {
+      "types": "./src/tokens/index.ts",
+      "svelte": "./src/tokens/index.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
+  "scripts": {
+    "dev": "svelte-package --watch",
+    "build": "svelte-package",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.2.2"
+  },
+  "devDependencies": {
+    "@sveltejs/package": "^2.3.11",
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "svelte": "^5.55.0",
+    "svelte-check": "^4.2.1",
+    "typescript": "^5.8.0"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  }
+}
