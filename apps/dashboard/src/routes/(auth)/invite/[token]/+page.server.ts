@@ -1,5 +1,5 @@
 import { superValidate, setError } from 'sveltekit-superforms';
-import { zod } from 'sveltekit-superforms/adapters';
+import { zod4 } from 'sveltekit-superforms/adapters';
 import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { forwardCookies } from '@repo/shared-utils/cookies';
@@ -15,7 +15,7 @@ const inviteAcceptSchema = z.object({
 });
 
 // Cast adapter to any to work around superforms ZodObjectType narrowness
-const inviteAdapter = zod(inviteAcceptSchema as any) as any;
+const inviteAdapter = zod4(inviteAcceptSchema as any) as any;
 
 export const load: PageServerLoad = async ({ params }) => {
 	if (!params.token) {

@@ -1,13 +1,13 @@
 import type { PageServerLoad, Actions, RequestEvent } from './$types.js';
 import { fail, redirect } from '@sveltejs/kit';
 import { superValidate, setError } from 'sveltekit-superforms';
-import { zod } from 'sveltekit-superforms/adapters';
+import { zod4 } from 'sveltekit-superforms/adapters';
 import { customerRegisterSchema } from '@repo/shared-types';
 import { forwardCookies } from '@repo/shared-utils/cookies';
 import { apiFetch } from '$lib/server/api';
 
 // Cast adapter to any to work around superforms ZodObjectType narrowness
-const registerAdapter = zod(customerRegisterSchema as any) as any;
+const registerAdapter = zod4(customerRegisterSchema as any) as any;
 
 export const load: PageServerLoad = async () => {
   const form = await superValidate(registerAdapter);

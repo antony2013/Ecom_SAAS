@@ -1,12 +1,12 @@
 import type { PageServerLoad, Actions, RequestEvent } from './$types.js';
 import { fail, redirect } from '@sveltejs/kit';
 import { superValidate, setMessage } from 'sveltekit-superforms';
-import { zod } from 'sveltekit-superforms/adapters';
+import { zod4 } from 'sveltekit-superforms/adapters';
 import { verifyEmailSchema } from '@repo/shared-types';
 import { apiFetch } from '$lib/server/api';
 
 // Cast adapter to any to work around superforms ZodObjectType narrowness
-const verifyEmailAdapter = zod(verifyEmailSchema as any) as any;
+const verifyEmailAdapter = zod4(verifyEmailSchema as any) as any;
 
 export const load: PageServerLoad = async ({ url }) => {
   const token = url.searchParams.get('token') ?? '';

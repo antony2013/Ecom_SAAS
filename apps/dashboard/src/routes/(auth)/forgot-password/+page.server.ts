@@ -1,12 +1,12 @@
 import { superValidate } from 'sveltekit-superforms';
-import { zod } from 'sveltekit-superforms/adapters';
+import { zod4 } from 'sveltekit-superforms/adapters';
 import { fail } from '@sveltejs/kit';
 import { emailSchema } from '@repo/shared-types';
 import { apiFetch } from '$lib/server/api';
 import type { Actions, PageServerLoad } from './$types';
 
 // Cast adapter to any to work around superforms ZodObjectType narrowness
-const emailAdapter = zod(emailSchema as any) as any;
+const emailAdapter = zod4(emailSchema as any) as any;
 
 export const load: PageServerLoad = async () => {
 	const form = await superValidate(emailAdapter);

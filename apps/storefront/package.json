@@ -28,7 +28,7 @@
     "sveltekit-superforms": "^2.30.1",
     "tailwind-merge": "^3.3.0",
     "vaul-svelte": "1.0.0-next.7",
-    "zod": "^3"
+    "zod": "^4"
   },
   "devDependencies": {
     "@internationalized/date": "^3.12.1",

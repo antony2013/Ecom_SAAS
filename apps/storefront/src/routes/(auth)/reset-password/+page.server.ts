@@ -1,12 +1,12 @@
 import type { PageServerLoad, Actions, RequestEvent } from './$types.js';
 import { fail, redirect } from '@sveltejs/kit';
 import { superValidate, setError } from 'sveltekit-superforms';
-import { zod } from 'sveltekit-superforms/adapters';
+import { zod4 } from 'sveltekit-superforms/adapters';
 import { resetPasswordSchema } from '@repo/shared-types';
 import { apiFetch } from '$lib/server/api';
 
 // Cast adapter to any to work around superforms ZodObjectType narrowness
-const resetPasswordAdapter = zod(resetPasswordSchema as any) as any;
+const resetPasswordAdapter = zod4(resetPasswordSchema as any) as any;
 
 export const load: PageServerLoad = async ({ url }) => {
   const token = url.searchParams.get('token') ?? '';

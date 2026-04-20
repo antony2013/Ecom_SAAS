@@ -1,5 +1,5 @@
 import { superValidate, setError } from 'sveltekit-superforms';
-import { zod } from 'sveltekit-superforms/adapters';
+import { zod4 } from 'sveltekit-superforms/adapters';
 import { fail, redirect } from '@sveltejs/kit';
 import { loginSchema } from '@repo/shared-types';
 import { forwardCookies } from '@repo/shared-utils/cookies';
@@ -7,7 +7,7 @@ import { apiFetch } from '$lib/server/api';
 import type { Actions, PageServerLoad } from './$types';
 
 // Cast adapter to any to work around superforms ZodObjectType narrowness
-const adminLoginAdapter = zod(loginSchema as any) as any;
+const adminLoginAdapter = zod4(loginSchema as any) as any;
 
 export const load: PageServerLoad = async () => {
 	const form = await superValidate(adminLoginAdapter);
