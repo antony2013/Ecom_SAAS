@@ -1,0 +1,53 @@
+import type { PageServerLoad } from './$types.js';
+import type { Cart, CustomerAddress } from '@repo/shared-types';
+
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
+
+export const load: PageServerLoad = async ({ cookies, url, fetch, parent }) => {
+  const parentData = await parent();
+  const isLoggedIn = parentData.isLoggedIn;
+
+  const host = url.hostname;
+  const subdomain = host.split('.')[0];
+  const storeDomain = subdomain !== 'localhost' && subdomain !== '127' ? subdomain : undefined;
+  const hostHeader = storeDomain ? `${storeDomain}.localhost:3000` : undefined;
+
+  const headers: Record<string, string> = {};
+  if (hostHeader) headers.Host = hostHeader;
+
+  // Fetch cart
+  const cartId = cookies.get('cartId');
+  if (cartId) headers['Cookie'] = `cartId=${cartId}`;
+
+  let cart: Cart | null = null;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/public/cart`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      cart = data.cart ?? null;
+    }
+  } catch {
+    // continue
+  }
+
+  // Fetch saved addresses for logged-in customers
+  let addresses: CustomerAddress[] = [];
+  if (isLoggedIn) {
+    try {
+      const accessToken = cookies.get('access_token');
+      const authHeaders = { ...headers };
+      if (accessToken) authHeaders['Cookie'] = `access_token=${accessToken}`;
+      const res = await fetch(`${API_BASE}/api/v1/customer/addresses`, {
+        headers: authHeaders,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        addresses = data.addresses ?? [];
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  return { cart, addresses };
+};

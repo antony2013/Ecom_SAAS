@@ -1,0 +1,198 @@
+<script lang="ts">
+  import type { PageData } from './$types.js';
+  import ImageGallery from '$lib/components/product/ImageGallery.svelte';
+  import VariantSelector from '$lib/components/product/VariantSelector.svelte';
+  import ModifierSelector from '$lib/components/product/ModifierSelector.svelte';
+  import ProductReviews from '$lib/components/product/ProductReviews.svelte';
+  import StickyAddToCart from '$lib/components/product/StickyAddToCart.svelte';
+  import ProductGrid from '$lib/components/product/ProductGrid.svelte';
+  import { formatPrice, parseImages, calcDiscountedPrice, discountLabel } from '$lib/utils/format.js';
+  import { Badge } from '$lib/components/ui/badge/index.js';
+  import { Clock, Package } from '@lucide/svelte';
+
+  let { data }: { data: PageData } = $props();
+
+  const product = data.product;
+  const images = parseImages(product.images);
+  const hasDiscount = parseFloat(product.discount) > 0;
+  const discountedPrice = hasDiscount
+    ? calcDiscountedPrice(product.salePrice, product.discountType, product.discount)
+    : parseFloat(product.salePrice);
+  const discLabel = hasDiscount ? discountLabel(product.discountType, product.discount) : '';
+  const themeType = data.themeType ?? 'appliances';
+
+  // Selected variant/modifier state
+  let selectedVariantOptionIds = $state<string[]>([]);
+  let selectedCombinationKey = $state<string>('');
+  let selectedModifierOptionIds = $state<string[]>([]);
+  let quantity = $state(1);
+
+  // Compute effective price based on selections
+  let effectivePrice = $derived.by(() => {
+    let price = discountedPrice;
+    // Add variant price adjustments (simplified: sum of selected options)
+    if (product.variants) {
+      for (const variant of product.variants) {
+        for (const option of variant.options) {
+          if (selectedVariantOptionIds.includes(option.id)) {
+            price += parseFloat(option.priceAdjustment);
+          }
+        }
+      }
+    }
+    // Add modifier price adjustments
+    if (product.modifierGroups) {
+      for (const group of product.modifierGroups) {
+        for (const option of group.options) {
+          if (selectedModifierOptionIds.includes(option.id)) {
+            price += parseFloat(option.priceAdjustment);
+          }
+        }
+      }
+    }
+    return price * quantity;
+  });
+</script>
+
+<svelte:head>
+  <title>{product.titleEn} | {data.store?.name ?? 'Store'}</title>
+  <meta name="description" content={product.descriptionEn ?? product.titleEn} />
+  {@html `<script type="application/ld+json">${JSON.stringify(data.jsonLd)}</script>`}
+</svelte:head>
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="lg:grid lg:grid-cols-2 lg:gap-12">
+    <!-- Image gallery -->
+    <ImageGallery images={images} title={product.titleEn} />
+
+    <!-- Product info -->
+    <div class="mt-6 lg:mt-0">
+      <div class="flex items-start justify-between">
+        <div>
+          {#if product.category}
+            <a
+              href="/categories/{product.category.id}"
+              class="text-sm text-[var(--color-primary)] hover:underline"
+            >
+              {product.category.nameEn}
+            </a>
+          {/if}
+          <h1 class="text-3xl font-bold text-[var(--color-text)] mt-1">{product.titleEn}</h1>
+        </div>
+        {#if hasDiscount && discLabel}
+          <Badge variant="destructive" class="text-sm">{discLabel}</Badge>
+        {/if}
+      </div>
+
+      <!-- Price -->
+      <div class="mt-4 flex items-baseline gap-3">
+        <span class="text-3xl font-bold text-[var(--color-primary)]">
+          {formatPrice(effectivePrice.toFixed(2))}
+        </span>
+        {#if hasDiscount}
+          <span class="text-lg text-[var(--color-text-secondary)] line-through">
+            {formatPrice(product.salePrice)}
+          </span>
+        {/if}
+      </div>
+
+      <!-- Meta badges -->
+      <div class="mt-3 flex items-center gap-4 text-sm text-[var(--color-text-secondary)]">
+        {#if product.preparationTime}
+          <span class="flex items-center gap-1">
+            <Clock class="size-4" />
+            {product.preparationTime} min
+          </span>
+        {/if}
+        <span class="flex items-center gap-1">
+          <Package class="size-4" />
+          {product.currentQuantity > 0 ? `${product.currentQuantity} in stock` : 'Out of stock'}
+        </span>
+        {#if data.reviewAvg > 0}
+          <span>{data.reviewAvg.toFixed(1)} ({data.reviewTotal} reviews)</span>
+        {/if}
+      </div>
+
+      <!-- Description -->
+      {#if product.descriptionEn}
+        <div class="mt-6 prose text-[var(--color-text-secondary)]">
+          {product.descriptionEn}
+        </div>
+      {/if}
+
+      <!-- Variants -->
+      {#if product.variants && product.variants.length > 0}
+        <div class="mt-6 space-y-4">
+          {#each product.variants as variant}
+            <VariantSelector
+              {variant}
+              selectedIds={selectedVariantOptionIds}
+              onSelect={(ids) => (selectedVariantOptionIds = ids)}
+            />
+          {/each}
+        </div>
+      {/if}
+
+      <!-- Modifiers -->
+      {#if product.modifierGroups && product.modifierGroups.length > 0}
+        <div class="mt-6 space-y-4">
+          {#each product.modifierGroups as group}
+            <ModifierSelector
+              {group}
+              selectedIds={selectedModifierOptionIds}
+              onSelect={(ids) => (selectedModifierOptionIds = ids)}
+            />
+          {/each}
+        </div>
+      {/if}
+
+      <!-- Quantity + Add to Cart (desktop) -->
+      <div class="mt-6 hidden lg:block">
+        <StickyAddToCart
+          productId={product.id}
+          price={formatPrice(effectivePrice.toFixed(2))}
+          {quantity}
+          onQuantityChange={(q) => (quantity = q)}
+          variantOptionIds={selectedVariantOptionIds}
+          combinationKey={selectedCombinationKey}
+          modifierOptionIds={selectedModifierOptionIds}
+          inStock={product.currentQuantity > 0}
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Reviews -->
+  <div class="mt-16">
+    <ProductReviews
+      reviews={data.reviews}
+      reviewAvg={data.reviewAvg}
+      reviewTotal={data.reviewTotal}
+      productId={product.id}
+      isLoggedIn={data.isLoggedIn}
+    />
+  </div>
+
+  <!-- Related products -->
+  {#if data.relatedProducts.length > 0}
+    <div class="mt-16">
+      <h2 class="text-2xl font-bold text-[var(--color-text)] mb-6">You May Also Like</h2>
+      <ProductGrid products={data.relatedProducts} {themeType} columns={4} />
+    </div>
+  {/if}
+</div>
+
+<!-- Mobile sticky add to cart bar -->
+<div class="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[var(--color-surface)] border-t border-[var(--color-border)] px-4 py-3">
+  <StickyAddToCart
+    productId={product.id}
+    price={formatPrice(effectivePrice.toFixed(2))}
+    {quantity}
+    onQuantityChange={(q) => (quantity = q)}
+    variantOptionIds={selectedVariantOptionIds}
+    combinationKey={selectedCombinationKey}
+    modifierOptionIds={selectedModifierOptionIds}
+    inStock={product.currentQuantity > 0}
+    mobile={true}
+  />
+</div>
