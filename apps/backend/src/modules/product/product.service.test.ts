@@ -22,7 +22,8 @@ vi.mock('./product.repo.js', () => ({
 
 import { productService } from './product.service.js';
 import { ErrorCodes } from '../../errors/codes.js';
-import { productRepo as mockProductRepo } from './product.repo.js';
+import { productRepo } from './product.repo.js';
+const mockProductRepo = productRepo as any;
 
 // ─── Fixtures ───
 const mockProduct = {

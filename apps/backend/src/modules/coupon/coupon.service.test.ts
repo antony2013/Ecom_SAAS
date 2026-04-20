@@ -13,7 +13,8 @@ vi.mock('./coupon.repo.js', () => ({
     deleteById: vi.fn(),
   },
 }));
-import { couponRepo as mockRepo } from './coupon.repo.js';
+import { couponRepo } from './coupon.repo.js';
+const mockRepo = couponRepo as any;
 
 // ─── Mock minDecimal ───
 vi.mock('../../lib/decimal.js', () => ({

@@ -10,7 +10,8 @@ vi.mock('./tax.repo.js', () => ({
   deleteRateById: vi.fn(),
   findActiveRatesByStoreId: vi.fn(),
 }));
-import * as mockRepo from './tax.repo.js';
+import * as _taxRepo from './tax.repo.js';
+const mockRepo = _taxRepo as any;
 
 import { taxService } from './tax.service.js';
 import { ErrorCodes } from '../../errors/codes.js';

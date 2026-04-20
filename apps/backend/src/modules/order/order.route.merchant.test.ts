@@ -7,14 +7,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Mock orderService ───
 vi.mock('./order.service.js', () => ({
   orderService: {
-    findByStoreId: vi.fn(),
-    findById: vi.fn(),
-    updateStatus: vi.fn(),
+    findByStoreId: vi.fn() as any,
+    findById: vi.fn() as any,
+    updateStatus: vi.fn() as any,
   },
 }));
 
-import { orderService } from './order.service.js';
+import { orderService as _orderService } from './order.service.js';
 import orderRoutes from './order.route.merchant.js';
+
+// Cast to any to bypass Drizzle's complex return types on service methods
+const orderService = _orderService as any;
 
 // ─── Fixtures ───
 const mockOrder = {

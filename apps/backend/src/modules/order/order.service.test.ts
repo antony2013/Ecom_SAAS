@@ -6,19 +6,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Mock orderRepo ───
 vi.mock('./order.repo.js', () => ({
   orderRepo: {
-    findByStoreId: vi.fn(),
-    findById: vi.fn(),
-    findByIdSimple: vi.fn(),
-    findOrderItems: vi.fn(),
-    insertOrder: vi.fn(),
-    insertOrderItems: vi.fn(),
-    decrementInventory: vi.fn(),
-    restoreInventory: vi.fn(),
-    deleteCartItems: vi.fn(),
-    resetCartTotals: vi.fn(),
-    findCouponById: vi.fn(),
-    incrementCouponUsage: vi.fn(),
-    updateOrder: vi.fn(),
+    findByStoreId: vi.fn() as any,
+    findById: vi.fn() as any,
+    findByIdSimple: vi.fn() as any,
+    findOrderItems: vi.fn() as any,
+    insertOrder: vi.fn() as any,
+    insertOrderItems: vi.fn() as any,
+    decrementInventory: vi.fn() as any,
+    restoreInventory: vi.fn() as any,
+    deleteCartItems: vi.fn() as any,
+    resetCartTotals: vi.fn() as any,
+    findCouponById: vi.fn() as any,
+    incrementCouponUsage: vi.fn() as any,
+    updateOrder: vi.fn() as any,
   },
 }));
 
@@ -28,14 +28,19 @@ vi.mock('./order.repo.js', () => ({
 const mockTx = {} as any;
 vi.mock('../../db/index.js', () => ({
   db: {
-    transaction: vi.fn((cb: Function) => cb(mockTx)),
+    transaction: vi.fn((cb: Function) => cb(mockTx)) as any,
   },
 }));
 
 import { orderService } from './order.service.js';
 import { ErrorCodes } from '../../errors/codes.js';
-import { orderRepo as mockOrderRepo } from './order.repo.js';
-import { db as mockDb } from '../../db/index.js';
+import { orderRepo as _mockOrderRepo } from './order.repo.js';
+import { db as _mockDb } from '../../db/index.js';
+
+// Cast to any to allow vitest mock methods (mockResolvedValueOnce, etc.)
+// on repo methods whose types are inferred from Drizzle's complex return types
+const mockOrderRepo = _mockOrderRepo as any;
+const mockDb = _mockDb as any;
 
 // ─── Fixtures ───
 const mockOrder = {
@@ -77,7 +82,7 @@ const mockCoupon = {
 beforeEach(() => {
   vi.clearAllMocks();
   // Reset db.transaction to default behavior (calls callback with mockTx)
-  (mockDb.transaction as ReturnType<typeof vi.fn>).mockImplementation((cb: Function) => cb(mockTx));
+  (mockDb.transaction as any).mockImplementation((cb: Function) => cb(mockTx));
 });
 
 // ═══════════════════════════════════════════
@@ -172,7 +177,7 @@ describe('orderService.findById', () => {
   });
 
   it('throws ORDER_NOT_FOUND when order does not exist', async () => {
-    mockOrderRepo.findById.mockResolvedValueOnce(null);
+    mockOrderRepo.findById.mockResolvedValueOnce(undefined);
 
     await expect(orderService.findById('nonexistent', 'store-1'))
       .rejects.toMatchObject({ code: ErrorCodes.ORDER_NOT_FOUND });
@@ -331,7 +336,7 @@ describe('orderService.create', () => {
     mockOrderRepo.insertOrder.mockResolvedValueOnce(createdOrder);
     mockOrderRepo.insertOrderItems.mockResolvedValueOnce([]);
     mockOrderRepo.decrementInventory.mockResolvedValue([{ id: 'prod-1' }]);
-    mockOrderRepo.findCouponById.mockResolvedValueOnce(null);
+    mockOrderRepo.findCouponById.mockResolvedValueOnce(undefined);
 
     await expect(
       orderService.create({
@@ -455,7 +460,7 @@ describe('orderService.updateStatus', () => {
     const updatedOrder = { ...order, status: 'shipped', fulfillmentStatus: 'shipped', shippedAt: expect.any(Date) };
     mockOrderRepo.updateOrder.mockResolvedValueOnce(updatedOrder);
 
-    const result = await orderService.updateStatus('order-1', 'store-1', 'shipped');
+    await orderService.updateStatus('order-1', 'store-1', 'shipped');
 
     expect(mockOrderRepo.updateOrder).toHaveBeenCalledWith(
       'order-1',
@@ -474,7 +479,7 @@ describe('orderService.updateStatus', () => {
     const updatedOrder = { ...order, status: 'delivered', fulfillmentStatus: 'fulfilled', deliveredAt: expect.any(Date) };
     mockOrderRepo.updateOrder.mockResolvedValueOnce(updatedOrder);
 
-    const result = await orderService.updateStatus('order-1', 'store-1', 'delivered');
+    await orderService.updateStatus('order-1', 'store-1', 'delivered');
 
     expect(mockOrderRepo.updateOrder).toHaveBeenCalledWith(
       'order-1',
@@ -504,7 +509,7 @@ describe('orderService.updateStatus', () => {
   });
 
   it('throws ORDER_NOT_FOUND when order does not exist', async () => {
-    mockOrderRepo.findByIdSimple.mockResolvedValueOnce(null);
+    mockOrderRepo.findByIdSimple.mockResolvedValueOnce(undefined);
 
     await expect(orderService.updateStatus('nonexistent', 'store-1', 'shipped'))
       .rejects.toMatchObject({ code: ErrorCodes.ORDER_NOT_FOUND });
@@ -562,7 +567,7 @@ describe('orderService.updateStatus', () => {
 
       const orderItems = [
         { orderId: 'order-1', productId: 'prod-1', quantity: 2 },
-        { orderId: 'order-1', productId: null, quantity: 1 }, // null productId — skip restore
+        { orderId: 'order-1', productId: undefined, quantity: 1 }, // undefined productId — skip restore
       ];
       mockOrderRepo.findOrderItems.mockResolvedValueOnce(orderItems);
       mockOrderRepo.updateOrder.mockResolvedValueOnce({ ...order, status: 'cancelled' });

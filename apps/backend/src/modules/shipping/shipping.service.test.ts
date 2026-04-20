@@ -16,7 +16,8 @@ vi.mock('./shipping.repo.js', () => ({
   deleteRateById: vi.fn(),
   findActiveZonesWithRates: vi.fn(),
 }));
-import * as mockRepo from './shipping.repo.js';
+import * as _shippingRepo from './shipping.repo.js';
+const mockRepo = _shippingRepo as any;
 
 import { shippingService } from './shipping.service.js';
 import { ErrorCodes } from '../../errors/codes.js';

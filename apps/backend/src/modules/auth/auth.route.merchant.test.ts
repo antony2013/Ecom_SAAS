@@ -20,7 +20,8 @@ vi.mock('./auth.service.js', () => ({
     resetPassword: vi.fn(),
   },
 }));
-import { authService } from './auth.service.js';
+import { authService as _authService } from './auth.service.js';
+const authService = _authService as any;
 
 // ─── Mock Redis ───
 function createMockRedis() {
@@ -50,8 +51,8 @@ async function buildApp() {
     sign: { expiresIn: '15m' },
   });
 
-  fastify.decorate('emailService', { sendEmail: vi.fn() });
-  fastify.decorate('redis', createMockRedis());
+  fastify.decorate('emailService', { sendEmail: vi.fn() } as any);
+  fastify.decorate('redis', createMockRedis() as any);
 
   // Error handler matching production setup
   fastify.setErrorHandler((error: unknown, _request, reply) => {

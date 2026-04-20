@@ -6,43 +6,50 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Mock pricingRepo ───
 vi.mock('./pricing.repo.js', () => ({
   pricingRepo: {
-    findProductById: vi.fn(),
-    findVariantOptionsByIds: vi.fn(),
-    findVariantsByIds: vi.fn(),
-    findCombination: vi.fn(),
-    findModifierOptionsByIds: vi.fn(),
-    findModifierGroupsByIds: vi.fn(),
+    findProductById: vi.fn() as any,
+    findVariantOptionsByIds: vi.fn() as any,
+    findVariantsByIds: vi.fn() as any,
+    findCombination: vi.fn() as any,
+    findModifierOptionsByIds: vi.fn() as any,
+    findModifierGroupsByIds: vi.fn() as any,
   },
 }));
 
 // ─── Mock couponService ───
 vi.mock('../coupon/coupon.service.js', () => ({
   couponService: {
-    validateCoupon: vi.fn(),
-    calculateDiscount: vi.fn(),
+    validateCoupon: vi.fn() as any,
+    calculateDiscount: vi.fn() as any,
   },
 }));
 
 // ─── Mock shippingService ───
 vi.mock('../shipping/shipping.service.js', () => ({
   shippingService: {
-    calculateShipping: vi.fn(),
+    calculateShipping: vi.fn() as any,
   },
 }));
 
 // ─── Mock taxService ───
 vi.mock('../tax/tax.service.js', () => ({
   taxService: {
-    calculateTax: vi.fn(),
+    calculateTax: vi.fn() as any,
   },
 }));
 
 import { pricingService } from './pricing.service.js';
 import { ErrorCodes } from '../../errors/codes.js';
-import { pricingRepo as mockPricingRepo } from './pricing.repo.js';
-import { couponService as mockCouponService } from '../coupon/coupon.service.js';
-import { shippingService as mockShippingService } from '../shipping/shipping.service.js';
-import { taxService as mockTaxService } from '../tax/tax.service.js';
+import { pricingRepo as _mockPricingRepo } from './pricing.repo.js';
+import { couponService as _mockCouponService } from '../coupon/coupon.service.js';
+import { shippingService as _mockShippingService } from '../shipping/shipping.service.js';
+import { taxService as _mockTaxService } from '../tax/tax.service.js';
+
+// Cast to any to allow vitest mock methods (mockResolvedValueOnce, etc.)
+// on repo/service methods whose types are inferred from Drizzle's complex return types
+const mockPricingRepo = _mockPricingRepo as any;
+const mockCouponService = _mockCouponService as any;
+const mockShippingService = _mockShippingService as any;
+const mockTaxService = _mockTaxService as any;
 
 // ─── Fixtures ───
 const baseProduct = {

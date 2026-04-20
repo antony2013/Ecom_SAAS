@@ -7,22 +7,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Mock cartService ───
 vi.mock('./cart.service.js', () => ({
   cartService: {
-    getOrCreateCart: vi.fn(),
-    addItem: vi.fn(),
-    updateItemQuantity: vi.fn(),
-    removeItem: vi.fn(),
+    getOrCreateCart: vi.fn() as any,
+    addItem: vi.fn() as any,
+    updateItemQuantity: vi.fn() as any,
+    removeItem: vi.fn() as any,
   },
 }));
 
 // Mock pricingService since cartService.addItem imports it internally
 vi.mock('../pricing/pricing.service.js', () => ({
   pricingService: {
-    computeItemPrice: vi.fn(),
+    computeItemPrice: vi.fn() as any,
   },
 }));
 
-import { cartService } from './cart.service.js';
+import { cartService as _cartService } from './cart.service.js';
 import cartRoutes from './cart.route.public.js';
+
+// Cast to any to bypass complex return types on service methods
+const cartService = _cartService as any;
 
 // ─── Fixtures ───
 const mockCart = {

@@ -10,7 +10,8 @@ vi.mock('bcrypt', () => ({
     compare: vi.fn(),
   },
 }));
-import bcrypt from 'bcrypt';
+import _bcrypt from 'bcrypt';
+const bcrypt = _bcrypt as any;
 
 // ─── Mock authRepo ───
 // Must define mock functions inline inside vi.mock factory because
@@ -43,7 +44,8 @@ vi.mock('./auth.repo.js', () => ({
 
 import { authService } from './auth.service.js';
 import { ErrorCodes } from '../../errors/codes.js';
-import { authRepo as mockAuthRepo } from './auth.repo.js';
+import { authRepo as _authRepo } from './auth.repo.js';
+const mockAuthRepo = _authRepo as any;
 
 // ─── Test helpers ───
 const mockHashedPassword = '$2b$12$hashedpassword12345678901234567890';
@@ -455,7 +457,7 @@ describe('authService.generateToken', () => {
     mockAuthRepo.deleteVerificationTokensByEmailTypeUserType.mockResolvedValueOnce(undefined);
     mockAuthRepo.createVerificationToken.mockResolvedValueOnce(mockRecord);
 
-    const result = await authService.generateToken('owner@store.com', 'password_reset', 'merchant');
+    await authService.generateToken('owner@store.com', 'password_reset', 'merchant');
 
     expect(mockAuthRepo.createVerificationToken).toHaveBeenCalledWith(
       expect.objectContaining({

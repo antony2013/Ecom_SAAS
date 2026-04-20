@@ -22,7 +22,8 @@ vi.mock('./product.service.js', () => ({
   },
 }));
 
-import { productService } from './product.service.js';
+import { productService as _productService } from './product.service.js';
+const productService = _productService as any;
 import productRoutes from './product.route.merchant.js';
 
 // ─── Fixtures ───
@@ -105,7 +106,7 @@ beforeEach(() => {
 describe('GET /products', () => {
   it('returns products with default pagination', async () => {
     const mockResult = { items: [mockProduct], total: 1 };
-    vi.mocked(productService.findByStoreId).mockResolvedValueOnce(mockResult);
+    (productService.findByStoreId).mockResolvedValueOnce(mockResult);
 
     const fastify = await buildApp();
     const response = await fastify.inject({ method: 'GET', url: '/products' });
@@ -121,7 +122,7 @@ describe('GET /products', () => {
 
   it('passes query params for pagination and isPublished filter', async () => {
     const mockResult = { items: [], total: 0 };
-    vi.mocked(productService.findByStoreId).mockResolvedValueOnce(mockResult);
+    (productService.findByStoreId).mockResolvedValueOnce(mockResult);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -156,7 +157,7 @@ describe('GET /products', () => {
 describe('GET /products/search', () => {
   it('returns search results with query string', async () => {
     const mockResult = { items: [mockProduct], total: 1, limit: 20, offset: 0 };
-    vi.mocked(productService.search).mockResolvedValueOnce(mockResult);
+    (productService.search).mockResolvedValueOnce(mockResult);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -174,7 +175,7 @@ describe('GET /products/search', () => {
 
   it('passes all search filter params', async () => {
     const mockResult = { items: [], total: 0, limit: 50, offset: 0 };
-    vi.mocked(productService.search).mockResolvedValueOnce(mockResult);
+    (productService.search).mockResolvedValueOnce(mockResult);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -201,7 +202,7 @@ describe('GET /products/search', () => {
 // ═══════════════════════════════════════════
 describe('POST /products', () => {
   it('creates a product and returns 201', async () => {
-    vi.mocked(productService.create).mockResolvedValueOnce(mockProduct);
+    (productService.create).mockResolvedValueOnce(mockProduct);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -275,7 +276,7 @@ describe('POST /products', () => {
 // ═══════════════════════════════════════════
 describe('GET /products/:id', () => {
   it('returns a product by ID', async () => {
-    vi.mocked(productService.findById).mockResolvedValueOnce(mockProduct);
+    (productService.findById).mockResolvedValueOnce(mockProduct);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -290,7 +291,7 @@ describe('GET /products/:id', () => {
   });
 
   it('returns 404 when product is not found (service throws)', async () => {
-    vi.mocked(productService.findById).mockRejectedValueOnce(
+    (productService.findById).mockRejectedValueOnce(
       Object.assign(new Error('Product not found'), { code: 'PRODUCT_NOT_FOUND' }),
     );
 
@@ -323,7 +324,7 @@ describe('GET /products/:id', () => {
 describe('PATCH /products/:id', () => {
   it('updates a product and returns it', async () => {
     const updated = { ...mockProduct, titleEn: 'Updated' };
-    vi.mocked(productService.update).mockResolvedValueOnce(updated);
+    (productService.update).mockResolvedValueOnce(updated);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -360,7 +361,7 @@ describe('PATCH /products/:id', () => {
 // ═══════════════════════════════════════════
 describe('DELETE /products/:id', () => {
   it('deletes a product and returns 204', async () => {
-    vi.mocked(productService.delete).mockResolvedValueOnce(mockProduct);
+    (productService.delete).mockResolvedValueOnce(mockProduct);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -393,7 +394,7 @@ describe('DELETE /products/:id', () => {
 // ═══════════════════════════════════════════
 describe('POST /products/:id/variants', () => {
   it('creates a variant and returns 201', async () => {
-    vi.mocked(productService.createVariant).mockResolvedValueOnce(mockVariant);
+    (productService.createVariant).mockResolvedValueOnce(mockVariant);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -431,7 +432,7 @@ describe('POST /products/:id/variants', () => {
 describe('PATCH /products/:productId/variants/:variantId', () => {
   it('updates a variant and returns it', async () => {
     const updated = { ...mockVariant, nameEn: 'Size' };
-    vi.mocked(productService.updateVariant).mockResolvedValueOnce(updated);
+    (productService.updateVariant).mockResolvedValueOnce(updated);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -468,7 +469,7 @@ describe('PATCH /products/:productId/variants/:variantId', () => {
 // ═══════════════════════════════════════════
 describe('DELETE /products/:productId/variants/:variantId', () => {
   it('deletes a variant and returns 204', async () => {
-    vi.mocked(productService.deleteVariant).mockResolvedValueOnce(mockVariant);
+    (productService.deleteVariant).mockResolvedValueOnce(mockVariant);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -490,7 +491,7 @@ describe('DELETE /products/:productId/variants/:variantId', () => {
 // ═══════════════════════════════════════════
 describe('POST /products/:variantId/options', () => {
   it('creates a variant option and returns 201', async () => {
-    vi.mocked(productService.createVariantOption).mockResolvedValueOnce(mockVariantOption);
+    (productService.createVariantOption).mockResolvedValueOnce(mockVariantOption);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -529,7 +530,7 @@ describe('POST /products/:variantId/options', () => {
 describe('PATCH /products/options/:optionId', () => {
   it('updates a variant option and returns it', async () => {
     const updated = { ...mockVariantOption, nameEn: 'Blue' };
-    vi.mocked(productService.updateVariantOption).mockResolvedValueOnce(updated);
+    (productService.updateVariantOption).mockResolvedValueOnce(updated);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -566,7 +567,7 @@ describe('PATCH /products/options/:optionId', () => {
 // ═══════════════════════════════════════════
 describe('DELETE /products/options/:optionId', () => {
   it('deletes a variant option and returns 204', async () => {
-    vi.mocked(productService.deleteVariantOption).mockResolvedValueOnce(mockVariantOption);
+    (productService.deleteVariantOption).mockResolvedValueOnce(mockVariantOption);
 
     const fastify = await buildApp();
     const response = await fastify.inject({

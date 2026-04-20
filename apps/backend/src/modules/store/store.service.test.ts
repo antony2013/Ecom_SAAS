@@ -11,7 +11,8 @@ vi.mock('./store.repo.js', () => ({
     update: vi.fn(),
   },
 }));
-import { storeRepo as mockRepo } from './store.repo.js';
+import { storeRepo } from './store.repo.js';
+const mockRepo = storeRepo as any;
 
 import { storeService } from './store.service.js';
 import { ErrorCodes } from '../../errors/codes.js';

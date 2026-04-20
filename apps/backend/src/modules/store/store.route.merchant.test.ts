@@ -12,7 +12,8 @@ vi.mock('./store.service.js', () => ({
   },
 }));
 
-import { storeService } from './store.service.js';
+import { storeService as _storeService } from './store.service.js';
+const storeService = _storeService as any;
 import storeRoutes from './store.route.merchant.js';
 
 // ─── Fixtures ───
@@ -91,7 +92,7 @@ beforeEach(() => {
 // ═══════════════════════════════════════════
 describe('GET /store', () => {
   it('returns store info with sensitive fields stripped', async () => {
-    vi.mocked(storeService.findByIdOrFail).mockResolvedValueOnce(mockStore);
+    (storeService.findByIdOrFail).mockResolvedValueOnce(mockStore);
 
     const fastify = await buildApp();
     const response = await fastify.inject({ method: 'GET', url: '/store' });
@@ -112,7 +113,7 @@ describe('GET /store', () => {
   });
 
   it('returns 404 when store not found (service throws)', async () => {
-    vi.mocked(storeService.findByIdOrFail).mockRejectedValueOnce(
+    (storeService.findByIdOrFail).mockRejectedValueOnce(
       Object.assign(new Error('Store not found'), { code: 'STORE_NOT_FOUND' }),
     );
 
@@ -131,7 +132,7 @@ describe('GET /store', () => {
 describe('PATCH /store', () => {
   it('updates store name and returns updated store with sensitive fields stripped', async () => {
     const updated = { ...mockStore, name: 'Updated Store' };
-    vi.mocked(storeService.update).mockResolvedValueOnce(updated);
+    (storeService.update).mockResolvedValueOnce(updated);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -158,7 +159,7 @@ describe('PATCH /store', () => {
       borderRadius: '16px',
       fontFamily: 'Roboto, sans-serif',
     };
-    vi.mocked(storeService.update).mockResolvedValueOnce(updated);
+    (storeService.update).mockResolvedValueOnce(updated);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -230,7 +231,7 @@ describe('PATCH /store', () => {
 
   it('accepts rgba color for borderColor', async () => {
     const updated = { ...mockStore, borderColor: 'rgba(0, 0, 0, 0.5)' };
-    vi.mocked(storeService.update).mockResolvedValueOnce(updated);
+    (storeService.update).mockResolvedValueOnce(updated);
 
     const fastify = await buildApp();
     const response = await fastify.inject({
@@ -245,7 +246,7 @@ describe('PATCH /store', () => {
 
   it('accepts hex color for borderColor', async () => {
     const updated = { ...mockStore, borderColor: '#e2e8f0' };
-    vi.mocked(storeService.update).mockResolvedValueOnce(updated);
+    (storeService.update).mockResolvedValueOnce(updated);
 
     const fastify = await buildApp();
     const response = await fastify.inject({

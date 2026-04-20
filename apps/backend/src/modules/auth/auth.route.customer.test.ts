@@ -31,8 +31,10 @@ vi.mock('../store/store.service.js', () => ({
   },
 }));
 
-import { authService } from './auth.service.js';
-import { storeService } from '../store/store.service.js';
+import { authService as _authService } from './auth.service.js';
+import { storeService as _storeService } from '../store/store.service.js';
+const authService = _authService as any;
+const storeService = _storeService as any;
 
 // ─── Mock Redis ───
 function createMockRedis() {
@@ -61,9 +63,9 @@ async function buildApp() {
     sign: { expiresIn: '15m' },
   });
 
-  fastify.decorate('emailService', { sendEmail: vi.fn() });
-  fastify.decorate('redis', createMockRedis());
-  fastify.decorate('storeService', storeService);
+  fastify.decorate('emailService', { sendEmail: vi.fn() } as any);
+  fastify.decorate('redis', createMockRedis() as any);
+  fastify.decorate('storeService', storeService as any);
 
   // Error handler matching production setup
   fastify.setErrorHandler((error: unknown, _request, reply) => {

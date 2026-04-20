@@ -75,7 +75,7 @@ describe('productRepo.findByStoreId', () => {
       { id: 'p1', titleEn: 'Product 1', storeId: 's1' },
       { id: 'p2', titleEn: 'Product 2', storeId: 's1' },
     ];
-    findMany().mockResolvedValueOnce(mockItems);
+    findMany().mockResolvedValueOnce(mockItems as any);
     setupSelectChain([{ count: 2 }]);
 
     const result = await productRepo.findByStoreId('s1');
@@ -140,7 +140,7 @@ describe('productRepo.findByStoreId', () => {
 describe('productRepo.findById', () => {
   it('returns product when found', async () => {
     const mockProduct = { id: 'p1', titleEn: 'Product 1', storeId: 's1' };
-    findFirst().mockResolvedValueOnce(mockProduct);
+    findFirst().mockResolvedValueOnce(mockProduct as any);
 
     const result = await productRepo.findById('p1', 's1');
     expect(result).toEqual(mockProduct);
@@ -155,11 +155,11 @@ describe('productRepo.findById', () => {
     }));
   });
 
-  it('returns null when product not found', async () => {
-    findFirst().mockResolvedValueOnce(null);
+  it('returns undefined when product not found', async () => {
+    findFirst().mockResolvedValueOnce(undefined);
 
     const result = await productRepo.findById('nonexistent', 's1');
-    expect(result).toBeNull();
+    expect(result).toBeUndefined();
   });
 });
 
@@ -355,7 +355,7 @@ describe('productRepo.search', () => {
       { id: 'p1', titleEn: 'Product 1' },
       { id: 'p2', titleEn: 'Product 2' },
     ];
-    findMany().mockResolvedValueOnce(mockItems);
+    findMany().mockResolvedValueOnce(mockItems as any);
     setupSelectChain([{ count: 2 }]);
 
     const result = await productRepo.search('s1', baseOpts);
