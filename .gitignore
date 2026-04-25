@@ -20,3 +20,4 @@ test-api.sh
 
 # Test artifacts
 test_upload.png
+.worktrees/
