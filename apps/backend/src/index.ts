@@ -35,14 +35,9 @@ function isPrivateIp(ip: string): boolean {
 }
 
 const fastify = Fastify({
-  logger: {
-    level: env.LOG_LEVEL,
-    ...(env.isProduction
-      ? {}
-      : { transport: { target: 'pino-pretty', options: { colorize: true } } }),
-  },
+  logger: { level: env.LOG_LEVEL },
   genReqId: () => crypto.randomUUID(),
-  trustProxy: env.isProduction ? 1 : true,
+  trustProxy: env.isProduction ? 1 : false,
 });
 
 // Register plugins
@@ -102,6 +97,13 @@ fastify.decorate('paymentService', paymentService);
 // Start email worker to process queued emails
 const emailProcessor = createEmailProcessor(emailService);
 queueService.createWorker('emails', emailProcessor);
+
+// Start webhook worker to process queued webhook deliveries
+import { webhookService } from './modules/webhook/webhook.service.js';
+queueService.createWorker('webhooks', async (job) => {
+  const { hook, event, payload } = job.data as { hook: any; event: string; payload: Record<string, unknown> };
+  await webhookService.deliverWebhook(hook, event, payload);
+});
 
 // Health check endpoints (no auth)
 fastify.get('/health', async () => ({
@@ -232,6 +234,7 @@ fastify.setErrorHandler((error: unknown, _request, reply) => {
     EMAIL_ALREADY_VERIFIED: 403,
     CANNOT_REMOVE_OWNER: 403,
     // 404 Not Found
+    NOT_FOUND: 404,
     STORE_NOT_FOUND: 404,
     PRODUCT_NOT_FOUND: 404,
     ORDER_NOT_FOUND: 404,
@@ -279,6 +282,10 @@ fastify.setErrorHandler((error: unknown, _request, reply) => {
     PAYMENT_FAILED: 400,
     PAYMENT_PROVIDER_NOT_ENABLED: 422,
     PAYMENT_ALREADY_PROCESSED: 409,
+    // Returns
+    RETURN_NOT_FOUND: 404,
+    RETURN_INVALID_STATUS: 422,
+    RETURN_UNAUTHORIZED: 403,
   };
 
   // Priority: custom code mapping > Fastify's statusCode > default 500

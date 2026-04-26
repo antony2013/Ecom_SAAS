@@ -119,7 +119,12 @@ export default async function merchantScope(fastify: FastifyInstance, _opts: Fas
   fastify.register(import('../modules/staff/staff.route.merchant.js'), { prefix: '/staff' });
   fastify.register(import('../modules/shipping/shipping.route.merchant.js'), { prefix: '/shipping' });
   fastify.register(import('../modules/tax/tax.route.merchant.js'), { prefix: '/tax' });
+  fastify.register(import('../modules/currency/currency.route.merchant.js'), { prefix: '/currency' });
+  fastify.register(import('../modules/webhook/webhook.route.merchant.js'), { prefix: '/webhooks' });
+  fastify.register(import('../modules/notifications/notifications.route.merchant.js'), { prefix: '/notifications' });
   fastify.register(import('../modules/payment/payment.route.merchant.js'), { prefix: '/payments' });
+  fastify.register(import('../modules/ticket/ticket.route.merchant.js'), { prefix: '/tickets' });
+  fastify.register(import('../modules/return/return.route.merchant.js'), { prefix: '/returns' });
 }
 
 /**
@@ -139,3 +144,5 @@ export function requirePermission(permission: string) {
     });
   };
 }
+
+

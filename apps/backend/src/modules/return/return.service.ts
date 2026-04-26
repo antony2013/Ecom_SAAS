@@ -119,17 +119,17 @@ export const returnService = {
     return returnRepo.updateStatus(returnId, storeId, newStatus, extra);
   },
 
-  async listReturns(storeId: string, page = 1, limit = 20) {
-    const safePage = Math.max(1, page);
-    const safeLimit = Math.max(1, limit);
-    const result = await returnRepo.findByStore(storeId, safePage, safeLimit);
+  async listReturns(storeId: string, opts?: { page?: number; limit?: number; status?: string; customerId?: string }) {
+    const page = Math.max(1, opts?.page ?? 1);
+    const limit = Math.max(1, opts?.limit ?? 20);
+    const result = await returnRepo.findByStore(storeId, page, limit, opts?.status, opts?.customerId);
     return {
       data: result.data,
       pagination: {
-        page: safePage,
-        limit: safeLimit,
+        page,
+        limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / safeLimit),
+        totalPages: Math.ceil(result.total / limit),
       },
     };
   },

@@ -335,7 +335,7 @@ describe('getReturn', () => {
 // ═══════════════════════════════════════════
 describe('listReturns', () => {
   it('returns returns for the store with pagination', async () => {
-    const result = await returnService.listReturns(storeId, 1, 20);
+    const result = await returnService.listReturns(storeId, { page: 1, limit: 20 });
     expect(Array.isArray(result.data)).toBe(true);
     expect(result.pagination.total).toBeGreaterThanOrEqual(1);
     expect(result.pagination.page).toBe(1);

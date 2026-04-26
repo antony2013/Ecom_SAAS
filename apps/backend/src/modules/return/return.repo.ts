@@ -31,8 +31,16 @@ export const returnRepo = {
     return result ?? null;
   },
 
-  async findByStore(storeId: string, page = 1, limit = 20) {
-    const where = eq(returns.storeId, storeId);
+  async findByStore(storeId: string, page = 1, limit = 20, status?: string, customerId?: string) {
+    const conditions = [eq(returns.storeId, storeId)];
+    if (status) {
+      conditions.push(eq(returns.status, status));
+    }
+    if (customerId) {
+      conditions.push(eq(returns.customerId, customerId));
+    }
+    const where = conditions.length === 1 ? conditions[0] : and(...conditions);
+
     const [rows, totalResult] = await Promise.all([
       db
         .select()

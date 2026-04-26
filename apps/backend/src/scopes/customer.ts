@@ -100,4 +100,5 @@ export default async function customerScope(fastify: FastifyInstance, _opts: Fas
   fastify.register(import('../modules/review/review.route.customer.js'), { prefix: '/reviews' });
   fastify.register(import('../modules/address/address.route.customer.js'), { prefix: '/addresses' });
   fastify.register(import('../modules/payment/payment.route.customer.js'), { prefix: '/payments' });
+  fastify.register(import('../modules/return/return.route.customer.js'), { prefix: '/returns' });
 }
