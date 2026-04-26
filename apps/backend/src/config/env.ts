@@ -40,6 +40,9 @@ const envSchema = z.object({
   // Analytics
   MIXPANEL_TOKEN: z.string().optional(),
 
+  // Observability
+  SENTRY_DSN: z.string().optional(),
+
   // Logging
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 

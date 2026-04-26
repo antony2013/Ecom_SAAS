@@ -22,6 +22,9 @@ import { createEmailProcessor } from './services/emailProcessor.service.js';
 import { backupService } from './modules/backup/backup.service.js';
 import { ErrorCodes } from './errors/codes.js';
 import { sql } from 'drizzle-orm';
+import { initSentry, Sentry } from './services/sentry.service.js';
+
+initSentry();
 
 function isPrivateIp(ip: string): boolean {
   if (ip === '127.0.0.1' || ip === '::1') return true;
@@ -227,7 +230,15 @@ fastify.get('/health/backup', async (_request, _reply) => {
 });
 
 // Error handler - MUST be registered BEFORE scopes so it catches all errors
-fastify.setErrorHandler((error: unknown, _request, reply) => {
+fastify.setErrorHandler((error: unknown, request, reply) => {
+  Sentry.captureException(error, {
+    extra: {
+      reqId: request.id,
+      storeId: (request as any).storeId,
+      url: request.url,
+      method: request.method,
+    },
+  });
   // Handle Zod validation errors as 400 Bad Request
   if (error && typeof error === 'object' && 'issues' in (error as object)) {
     const zodError = error as { issues: Array<{ path: (string | number)[]; message: string }> };
