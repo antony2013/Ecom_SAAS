@@ -30,7 +30,7 @@ export default async function merchantReturnsRoutes(fastify: FastifyInstance) {
   }, async (request) => {
     const { id } = idParamSchema.parse(request.params);
     const ret = await returnService.getReturn(id, request.storeId);
-    return { data: ret };
+    return { returnRequest: ret };
   });
 
   // PATCH /api/v1/merchant/returns/:id/status
@@ -46,6 +46,6 @@ export default async function merchantReturnsRoutes(fastify: FastifyInstance) {
     const { id } = idParamSchema.parse(request.params);
     const parsed = updateReturnStatusSchema.parse(request.body);
     const ret = await returnService.updateStatus(id, request.storeId, parsed.status, parsed.adminNotes);
-    return { data: ret };
+    return { returnRequest: ret };
   });
 }

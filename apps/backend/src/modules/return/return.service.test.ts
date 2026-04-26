@@ -45,35 +45,32 @@ beforeAll(async () => {
       .returning();
     createdCustomer = true;
   }
-  if (!order) {
-    [order] = await db
-      .insert(orders)
-      .values({
-        storeId: store.id,
-        customerId: customer.id,
-        orderNumber: `RS-ORD-${Date.now()}`,
-        email: customer.email,
-        currency: 'USD',
-        subtotal: '100.00',
-        total: '100.00',
-      })
-      .returning();
-    createdOrder = true;
-  }
-  if (!orderItem) {
-    [orderItem] = await db
-      .insert(orderItems)
-      .values({
-        orderId: order.id,
-        storeId: store.id,
-        productTitle: 'RS Test Product',
-        quantity: 2,
-        price: '29.99',
-        total: '59.98',
-      })
-      .returning();
-    createdOrderItem = true;
-  }
+  [order] = await db
+    .insert(orders)
+    .values({
+      storeId: store.id,
+      customerId: customer.id,
+      orderNumber: `RS-ORD-${Date.now()}`,
+      email: customer.email,
+      currency: 'USD',
+      subtotal: '100.00',
+      total: '100.00',
+    })
+    .returning();
+  createdOrder = true;
+
+  [orderItem] = await db
+    .insert(orderItems)
+    .values({
+      orderId: order.id,
+      storeId: store.id,
+      productTitle: 'RS Test Product',
+      quantity: 2,
+      price: '29.99',
+      total: '59.98',
+    })
+    .returning();
+  createdOrderItem = true;
 
   storeId = store.id;
   customerId = customer.id;

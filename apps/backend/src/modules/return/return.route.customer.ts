@@ -1,13 +1,13 @@
 // Customer Returns Routes - Create and view returns
 import { FastifyInstance } from 'fastify';
 import { returnService } from './return.service.js';
-import { createReturnSchema, idParamSchema } from './return.schema.js';
-import { listQuerySchema } from './return.schema.js';
+import { createReturnSchema, idParamSchema, listQuerySchema } from './return.schema.js';
 import { ErrorCodes } from '../../errors/codes.js';
 
 export default async function customerReturnsRoutes(fastify: FastifyInstance) {
   // POST /api/v1/customer/returns - Create a return
   fastify.post('/', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     schema: {
       tags: ['Customer Returns'],
       summary: 'Create return',
@@ -22,7 +22,7 @@ export default async function customerReturnsRoutes(fastify: FastifyInstance) {
       ...parsed,
     });
     reply.status(201);
-    return { data: ret };
+    return { returnRequest: ret };
   });
 
   // GET /api/v1/customer/returns - List customer returns
@@ -57,6 +57,6 @@ export default async function customerReturnsRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    return { data: ret };
+    return { returnRequest: ret };
   });
 }

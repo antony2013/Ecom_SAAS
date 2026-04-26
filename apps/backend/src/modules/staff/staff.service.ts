@@ -23,11 +23,13 @@ export const DEFAULT_PERMISSIONS: Record<string, string[]> = {
     'tax:write',
     'upload:write',
     'staff:write',
+    'returns:read', 'returns:write',
   ],
   CASHIER: [
     'orders:read', 'orders:write',
     'customers:read',
     'products:read',
+    'returns:read',
   ],
 };
 

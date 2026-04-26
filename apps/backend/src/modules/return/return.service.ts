@@ -22,6 +22,9 @@ export const returnService = {
       if (!order) {
         throw Object.assign(new Error('Order not found'), { code: ErrorCodes.ORDER_NOT_FOUND });
       }
+      if (data.customerId && order.customerId !== data.customerId) {
+        throw Object.assign(new Error('Order does not belong to customer'), { code: ErrorCodes.RETURN_UNAUTHORIZED });
+      }
       if (order.status === 'cancelled') {
         throw Object.assign(new Error('Order is cancelled'), { code: ErrorCodes.ORDER_CANCELLED });
       }

@@ -10,14 +10,16 @@ export { paginationQuerySchema as listQuerySchema };
 
 // --- Merchant route schemas ---
 
-export const merchantListQuerySchema = z.strictObject({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  status: z.enum(['requested', 'approved', 'received', 'inspected', 'refunded', 'rejected', 'cancelled']).optional(),
+export const returnStatusSchema = z.enum(['requested', 'approved', 'received', 'inspected', 'refunded', 'rejected', 'cancelled']);
+
+export const merchantListQuerySchema = paginationQuerySchema.extend({
+  status: returnStatusSchema.optional(),
 });
 
+export const listReturnsQuerySchema = merchantListQuerySchema;
+
 export const updateReturnStatusSchema = z.strictObject({
-  status: z.enum(['requested', 'approved', 'received', 'inspected', 'refunded', 'rejected', 'cancelled']),
+  status: returnStatusSchema,
   adminNotes: z.string().max(1000).optional(),
 });
 
