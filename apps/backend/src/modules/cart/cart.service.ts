@@ -4,6 +4,22 @@ import { ErrorCodes } from '../../errors/codes.js';
 import { addDecimals, multiplyDecimalByInt } from '../../lib/decimal.js';
 import { cartRepo } from './cart.repo.js';
 import { pricingService } from '../pricing/pricing.service.js';
+import type { QueueService } from '../../services/queue.service.js';
+
+async function scheduleAbandonedCartRecovery(
+  cartId: string,
+  storeId: string,
+  customerId: string | undefined,
+  queueService: QueueService | undefined,
+) {
+  if (customerId && queueService?.abandonedCartQueue) {
+    await queueService.abandonedCartQueue.add(
+      'abandoned-cart',
+      { storeId, cartId, customerId },
+      { delay: 60 * 60 * 1000, jobId: `ac-${cartId}` },
+    );
+  }
+}
 
 export const cartService = {
   /**
@@ -61,6 +77,8 @@ export const cartService = {
       combinationKey?: string;
       modifierOptionIds?: string[];
     },
+    customerId?: string,
+    queueService?: QueueService,
   ) {
     // Compute verified price for this item
     const itemPricing = await pricingService.computeItemPrice({
@@ -113,6 +131,7 @@ export const cartService = {
       await cartService.recalculateTotals(cartId);
 
       const cart = await cartRepo.findCartById(cartId, storeId);
+      await scheduleAbandonedCartRecovery(cartId, storeId, customerId, queueService);
       return { cart, item: updated };
     }
 
@@ -129,6 +148,7 @@ export const cartService = {
     await cartService.recalculateTotals(cartId);
 
     const cart = await cartRepo.findCartById(cartId, storeId);
+    await scheduleAbandonedCartRecovery(cartId, storeId, customerId, queueService);
     return { cart, item };
   },
 
@@ -136,7 +156,7 @@ export const cartService = {
    * Update the quantity of a cart item.
    * Recomputes total from the stored (server-verified) price.
    */
-  async updateItemQuantity(cartId: string, itemId: string, quantity: number, storeId: string) {
+  async updateItemQuantity(cartId: string, itemId: string, quantity: number, storeId: string, customerId?: string, queueService?: QueueService) {
     const item = await cartRepo.findCartItemById(itemId, cartId);
 
     if (!item) {
@@ -155,6 +175,7 @@ export const cartService = {
     await cartService.recalculateTotals(cartId);
 
     const cart = await cartRepo.findCartById(cartId, storeId);
+    await scheduleAbandonedCartRecovery(cartId, storeId, customerId, queueService);
     return { cart, item: updated };
   },
 

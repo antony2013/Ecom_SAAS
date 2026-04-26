@@ -72,7 +72,7 @@ export default async function publicCartRoutes(fastify: FastifyInstance) {
       variantOptionIds: parsed.variantOptionIds,
       combinationKey: parsed.combinationKey,
       modifierOptionIds: parsed.modifierOptionIds,
-    });
+    }, (request as any).customerId, fastify.queueService);
 
     return result;
   });
@@ -95,7 +95,7 @@ export default async function publicCartRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const result = await cartService.updateItemQuantity(cartId, itemId, parsed.quantity, request.storeId);
+      const result = await cartService.updateItemQuantity(cartId, itemId, parsed.quantity, request.storeId, (request as any).customerId, fastify.queueService);
       return result;
     } catch (err: any) {
       if (err.code === ErrorCodes.CART_ITEM_NOT_FOUND) {

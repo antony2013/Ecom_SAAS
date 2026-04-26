@@ -23,6 +23,7 @@ import { backupService } from './modules/backup/backup.service.js';
 import { ErrorCodes } from './errors/codes.js';
 import { sql } from 'drizzle-orm';
 import { initSentry, Sentry } from './services/sentry.service.js';
+import { runAbandonedCartCron } from './jobs/abandonedCartCron.js';
 
 initSentry();
 
@@ -402,6 +403,14 @@ try {
   fastify.log.error(err);
   process.exit(1);
 }
+
+// Run every 30 minutes
+setInterval(() => {
+  runAbandonedCartCron(queueService).catch((err) => fastify.log.error(err));
+}, 30 * 60 * 1000);
+
+// Run once on startup
+runAbandonedCartCron(queueService).catch((err) => fastify.log.error(err));
 
 // Graceful shutdown
 const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];

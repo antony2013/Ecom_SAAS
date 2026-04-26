@@ -198,7 +198,7 @@ describe('POST /cart/items', () => {
       variantOptionIds: undefined,
       combinationKey: undefined,
       modifierOptionIds: undefined,
-    });
+    }, undefined, undefined);
     await fastify.close();
   });
 
@@ -295,7 +295,7 @@ describe('POST /cart/items', () => {
       variantOptionIds: ['550e8400-e29b-41d4-a716-446655440010'],
       combinationKey: 'red-large',
       modifierOptionIds: ['550e8400-e29b-41d4-a716-446655440020'],
-    });
+    }, undefined, undefined);
     await fastify.close();
   });
 
@@ -355,6 +355,9 @@ describe('PATCH /cart/items/:itemId', () => {
       'cart-1',
       '550e8400-e29b-41d4-a716-446655440050',
       5,
+      expect.any(String),
+      undefined,
+      undefined,
     );
     await fastify.close();
   });
@@ -452,6 +455,7 @@ describe('DELETE /cart/items/:itemId', () => {
     expect(cartService.removeItem).toHaveBeenCalledWith(
       'cart-1',
       '550e8400-e29b-41d4-a716-446655440050',
+      expect.any(String),
     );
     await fastify.close();
   });
