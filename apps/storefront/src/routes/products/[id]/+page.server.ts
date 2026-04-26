@@ -8,10 +8,8 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
   const host = url.hostname;
   const subdomain = host.split('.')[0];
   const storeDomain = subdomain !== 'localhost' && subdomain !== '127' ? subdomain : undefined;
-  const hostHeader = storeDomain ? `${storeDomain}.localhost:3000` : undefined;
-
   const headers: Record<string, string> = {};
-  if (hostHeader) headers.Host = hostHeader;
+  if (storeDomain) headers['X-Store-Domain'] = storeDomain;
 
   let product: Product | null = null;
   try {
@@ -71,13 +69,25 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
     // continue without reviews
   }
 
+  // Fetch bundles containing this product
+  let bundles: any[] = [];
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/public/bundles/product/${params.id}`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      bundles = data.bundles ?? [];
+    }
+  } catch {
+    // continue without bundles
+  }
+
   // JSON-LD structured data for SEO
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.titleEn,
     description: product.descriptionEn ?? '',
-    image: product.images?.split(',')[0]?.trim() ?? '',
+    image: Array.isArray(product.images) ? product.images[0] ?? '' : product.images?.split(',')[0]?.trim() ?? '',
     offers: {
       '@type': 'Offer',
       price: product.salePrice,
@@ -103,6 +113,7 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
     reviews,
     reviewTotal,
     reviewAvg,
+    bundles,
     jsonLd,
   };
 };

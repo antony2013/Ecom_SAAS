@@ -38,6 +38,10 @@ export const bundleService = {
     return bundle;
   },
 
+  async findBundlesByProductId(productId: string, storeId: string) {
+    return bundleRepo.findBundlesByProductId(productId, storeId);
+  },
+
   async create(data: {
     storeId: string;
     name: string;

@@ -1,4 +1,5 @@
 import type { Cart, CartItem } from '@repo/shared-types';
+import { getCookie } from '$lib/api/client.js';
 
 // Simple reactive cart state using Svelte 5 runes pattern
 // This module is imported into components that need cart state
@@ -45,18 +46,24 @@ export async function refreshCart() {
 export async function addToCart(
   productId: string,
   quantity = 1,
+  bundleId?: string,
   variantOptionIds?: string[],
   combinationKey?: string,
   modifierOptionIds?: string[],
 ) {
   try {
+    const csrfToken = getCookie('csrf_token');
     const res = await fetch('/api/v1/public/cart/items', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+      },
       credentials: 'include',
       body: JSON.stringify({
         productId,
         quantity,
+        bundleId: bundleId || undefined,
         variantOptionIds: variantOptionIds?.length ? variantOptionIds : undefined,
         combinationKey: combinationKey || undefined,
         modifierOptionIds: modifierOptionIds?.length ? modifierOptionIds : undefined,
@@ -77,9 +84,13 @@ export async function addToCart(
 
 export async function updateCartItemQuantity(itemId: string, quantity: number) {
   try {
+    const csrfToken = getCookie('csrf_token');
     const res = await fetch(`/api/v1/public/cart/items/${itemId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+      },
       credentials: 'include',
       body: JSON.stringify({ quantity }),
     });
@@ -94,8 +105,10 @@ export async function updateCartItemQuantity(itemId: string, quantity: number) {
 
 export async function removeCartItem(itemId: string) {
   try {
+    const csrfToken = getCookie('csrf_token');
     const res = await fetch(`/api/v1/public/cart/items/${itemId}`, {
       method: 'DELETE',
+      headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
       credentials: 'include',
     });
     if (res.ok) {

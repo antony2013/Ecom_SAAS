@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const addItemSchema = z.strictObject({
   productId: z.string().uuid(),
   quantity: z.number().int().min(1).default(1),
+  bundleId: z.string().uuid().optional(),
   variantOptionIds: z.array(z.string().uuid()).optional(),
   combinationKey: z.string().optional(),
   modifierOptionIds: z.array(z.string().uuid()).optional(),

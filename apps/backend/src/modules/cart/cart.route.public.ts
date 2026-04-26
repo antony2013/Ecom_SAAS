@@ -69,6 +69,7 @@ export default async function publicCartRoutes(fastify: FastifyInstance) {
     const result = await cartService.addItem(cartId, request.storeId, {
       productId: parsed.productId,
       quantity: parsed.quantity,
+      bundleId: parsed.bundleId,
       variantOptionIds: parsed.variantOptionIds,
       combinationKey: parsed.combinationKey,
       modifierOptionIds: parsed.modifierOptionIds,

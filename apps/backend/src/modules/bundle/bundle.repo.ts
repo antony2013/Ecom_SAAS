@@ -114,4 +114,31 @@ export const bundleRepo = {
       ),
     });
   },
+
+  async findBundlesByProductId(productId: string, storeId: string, tx?: DbOrTx) {
+    const executor = tx ?? db;
+    // Step 1: find bundle IDs that contain this product
+    const bundleIdRows = await executor
+      .select({ bundleId: productBundleItems.bundleId })
+      .from(productBundleItems)
+      .where(eq(productBundleItems.productId, productId));
+    const bundleIds = bundleIdRows.map((r) => r.bundleId);
+    if (bundleIds.length === 0) return [];
+
+    // Step 2: fetch active bundles with items
+    return executor.query.productBundles.findMany({
+      where: and(
+        inArray(productBundles.id, bundleIds),
+        eq(productBundles.storeId, storeId),
+        eq(productBundles.isActive, true),
+      ),
+      with: {
+        items: {
+          with: {
+            product: true,
+          },
+        },
+      },
+    });
+  },
 };

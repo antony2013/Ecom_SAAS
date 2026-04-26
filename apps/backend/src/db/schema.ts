@@ -424,9 +424,10 @@ export const cartItems = pgTable("cart_items", {
   id: uuid("id").primaryKey().defaultRandom(),
   cartId: uuid("cart_id").references(() => carts.id, { onDelete: "cascade" }).notNull(),
   productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }).notNull(),
+  bundleId: uuid("bundle_id").references(() => productBundles.id, { onDelete: "set null" }),
   quantity: integer("quantity").notNull().default(1),
-  price: decimal("price").notNull(),
-  total: decimal("total").notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   modifiers: json("modifiers"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -732,6 +733,10 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   product: one(products, {
     fields: [cartItems.productId],
     references: [products.id],
+  }),
+  bundle: one(productBundles, {
+    fields: [cartItems.bundleId],
+    references: [productBundles.id],
   }),
 }));
 

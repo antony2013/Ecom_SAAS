@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button } from '$lib/components/ui/button/index.js';
   import { Minus, Plus, ShoppingCart } from '@lucide/svelte';
+  import { addToCart as addToCartStore } from '$lib/stores/cart.svelte';
 
   interface Props {
     productId: string;
@@ -31,25 +32,17 @@
   async function addToCart() {
     adding = true;
     try {
-      const res = await fetch('/api/v1/public/cart/items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          productId,
-          quantity,
-          variantOptionIds: variantOptionIds.length > 0 ? variantOptionIds : undefined,
-          combinationKey: combinationKey || undefined,
-          modifierOptionIds: modifierOptionIds.length > 0 ? modifierOptionIds : undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ message: 'Failed to add to cart' }));
-        throw new Error(data.message);
+      const ok = await addToCartStore(
+        productId,
+        quantity,
+        undefined,
+        variantOptionIds.length > 0 ? variantOptionIds : undefined,
+        combinationKey || undefined,
+        modifierOptionIds.length > 0 ? modifierOptionIds : undefined,
+      );
+      if (!ok) {
+        console.error('Add to cart failed');
       }
-      // Trigger cart refresh — event or store update
-      window.dispatchEvent(new CustomEvent('cart-updated'));
     } catch (e: any) {
       console.error('Add to cart failed:', e.message);
     } finally {

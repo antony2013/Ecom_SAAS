@@ -1,4 +1,4 @@
-// Pricing service — server-side price computation for checkout and cart.
+﻿// Pricing service â€” server-side price computation for checkout and cart.
 // Calls pricingRepo for DB lookups and delegates coupon/shipping/tax to their services.
 // NEVER imports from db/index.js directly.
 import { ErrorCodes } from '../../errors/codes.js';
@@ -7,10 +7,13 @@ import { couponService } from '../coupon/coupon.service.js';
 import { shippingService } from '../shipping/shipping.service.js';
 import { taxService } from '../tax/tax.service.js';
 import { pricingRepo } from './pricing.repo.js';
+import { bundleRepo } from '../bundle/bundle.repo.js';
+import { currencyService } from '../currency/currency.service.js';
 
 export interface ComputeItemPriceParams {
   storeId: string;
   productId: string;
+  bundleId?: string;
   variantOptionIds?: string[];
   combinationKey?: string;
   modifierOptionIds?: string[];
@@ -54,6 +57,7 @@ export interface ComputeOrderPricingParams {
 }
 
 export interface ComputedOrderPricing {
+    storeId: string;
   items: ComputedItemPrice[];
   subtotal: string;
   discount: string;
@@ -88,6 +92,35 @@ export const pricingService = {
 
     if ((product.currentQuantity ?? 0) < quantity) {
       throw Object.assign(new Error('Insufficient inventory'), { code: ErrorCodes.INSUFFICIENT_INVENTORY });
+    }
+
+    // Bundle price override: if a bundleId is provided, use the bundle's fixed price directly
+    if (params.bundleId) {
+      const bundle = await bundleRepo.findById(params.bundleId, storeId);
+      if (!bundle) {
+        throw Object.assign(new Error('Bundle not found'), { code: ErrorCodes.PRODUCT_NOT_FOUND });
+      }
+      if (!bundle.isActive) {
+        throw Object.assign(new Error('Bundle is not active'), { code: ErrorCodes.PRODUCT_UNAVAILABLE });
+      }
+      const bundlePrice = bundle.price;
+      const lineTotal = multiplyDecimalByInt(bundlePrice, quantity);
+      return {
+        productId: product.id,
+        productTitle: product.titleEn,
+        productImage: Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : null,
+        variantName: null,
+        salePrice: product.salePrice,
+        variantAdjustment: '0.00',
+        modifierAdjustment: '0.00',
+        discountType: null,
+        discountAmount: '0.00',
+        effectivePrice: bundlePrice,
+        lineTotal,
+        currentQuantity: product.currentQuantity ?? 0,
+        isPublished: product.isPublished ?? true,
+        quantityRequested: quantity,
+      };
     }
 
     let effectivePrice = product.salePrice;
@@ -256,7 +289,7 @@ export const pricingService = {
       subtotal = addDecimals(subtotal, item.lineTotal);
     }
 
-    // 3. Apply coupon if provided (delegates to couponService — cross-module service call)
+    // 3. Apply coupon if provided (delegates to couponService â€” cross-module service call)
     let discount = '0.00';
     let freeShipping = false;
     let coupon: typeof import('../../db/schema.js').coupons.$inferSelect | null = null;
@@ -273,7 +306,7 @@ export const pricingService = {
       ? subtractDecimals(subtotal, discount)
       : '0.00';
 
-    // 4. Calculate shipping (delegates to shippingService — cross-module service call)
+    // 4. Calculate shipping (delegates to shippingService â€” cross-module service call)
     let shipping = '0.00';
     let shippingOptionId: string | null = null;
 
@@ -298,7 +331,7 @@ export const pricingService = {
       }
     }
 
-    // 5. Calculate tax (delegates to taxService — cross-module service call)
+    // 5. Calculate tax (delegates to taxService â€” cross-module service call)
     let tax = 0;
     let taxBreakdown: Array<{ name: string; rate: string; amount: number }> = [];
 
@@ -328,8 +361,42 @@ export const pricingService = {
       tax: taxString,
       taxBreakdown,
       total,
+      storeId,
       coupon,
       freeShipping,
     };
   },
+  /**
+   * Convert computed order pricing to target currency.
+   */
+  async convertOrderPricing(pricing: ComputedOrderPricing, targetCurrency: string) {
+    const storeCurrency = await currencyService.getStoreCurrency(pricing.storeId);
+    if (targetCurrency === storeCurrency) return pricing;
+
+    const convert = (amount: string) => currencyService.convert(amount, storeCurrency, targetCurrency);
+
+    const convertedItems = await Promise.all(
+      pricing.items.map(async (item) => ({
+        ...item,
+        salePrice: await convert(item.salePrice),
+        variantAdjustment: await convert(item.variantAdjustment),
+        modifierAdjustment: await convert(item.modifierAdjustment),
+        discountAmount: await convert(item.discountAmount),
+        effectivePrice: await convert(item.effectivePrice),
+        lineTotal: await convert(item.lineTotal),
+      })),
+    );
+
+    return {
+      ...pricing,
+      items: convertedItems,
+      subtotal: await convert(pricing.subtotal),
+      discount: await convert(pricing.discount),
+      subtotalAfterDiscount: await convert(pricing.subtotalAfterDiscount),
+      shipping: await convert(pricing.shipping),
+      tax: await convert(pricing.tax),
+      total: await convert(pricing.total),
+    };
+  },
 };
+

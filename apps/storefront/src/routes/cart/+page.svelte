@@ -4,6 +4,7 @@
   import { Button } from '$lib/components/ui/button/index.js';
   import { Minus, Plus, Trash2, ShoppingCart } from '@lucide/svelte';
   import { goto } from '$app/navigation';
+  import { getCookie } from '$lib/api/client.js';
 
   let { data }: { data: PageData } = $props();
 
@@ -14,9 +15,13 @@
     if (quantity < 1) return;
     updating.add(itemId);
     try {
+      const csrfToken = getCookie('csrf_token');
       const res = await fetch(`/api/v1/public/cart/items/${itemId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify({ quantity }),
       });
@@ -34,8 +39,10 @@
   async function removeItem(itemId: string) {
     updating.add(itemId);
     try {
+      const csrfToken = getCookie('csrf_token');
       const res = await fetch(`/api/v1/public/cart/items/${itemId}`, {
         method: 'DELETE',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
         credentials: 'include',
       });
       if (res.ok) {
@@ -73,22 +80,35 @@
           <div
             class="flex items-center gap-4 p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] {updating.has(item.id) ? 'opacity-60' : ''}"
           >
-            <div class="shrink-0 w-20 h-20 bg-[var(--color-bg)] rounded-[var(--radius-sm)] flex items-center justify-center">
-              <span class="text-xs text-[var(--color-text-secondary)]">{item.productId.slice(0, 8)}</span>
+            <div class="shrink-0 w-20 h-20 bg-[var(--color-bg)] rounded-[var(--radius-sm)] flex items-center justify-center overflow-hidden">
+              {#if item.product?.images}
+                <img src={item.product.images.split(',')[0]?.trim()} alt={item.product.titleEn} class="w-full h-full object-cover" />
+              {:else}
+                <span class="text-xs text-[var(--color-text-secondary)]">{item.productId.slice(0, 8)}</span>
+              {/if}
             </div>
 
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-[var(--color-text)] truncate">{item.productId}</p>
-              <p class="text-sm text-[var(--color-text-secondary)]">{formatPrice(item.price)} each</p>
-              {#if item.modifiers}
-                <p class="text-xs text-[var(--color-text-secondary)] mt-1">
-                  {#if item.modifiers.variantOptionIds?.length}
-                    Variant: {item.modifiers.variantOptionIds.length} option(s)
-                  {/if}
-                  {#if item.modifiers.modifierOptionIds?.length}
-                    Modifiers: {item.modifiers.modifierOptionIds.length}
-                  {/if}
-                </p>
+              <p class="text-sm font-medium text-[var(--color-text)] truncate">{item.product?.titleEn ?? item.productId}</p>
+              {#if item.bundle}
+                <p class="text-xs text-[var(--color-primary)] font-medium">Bundle — {formatPrice(item.bundle.price)}</p>
+                <div class="mt-1 space-y-0.5">
+                  {#each item.bundle.items ?? [] as bi (bi.id)}
+                    <p class="text-[11px] text-[var(--color-text-secondary)] truncate">{bi.product?.titleEn ?? 'Product'} × {bi.quantity}</p>
+                  {/each}
+                </div>
+              {:else}
+                <p class="text-sm text-[var(--color-text-secondary)]">{formatPrice(item.price)} each</p>
+                {#if item.modifiers}
+                  <p class="text-xs text-[var(--color-text-secondary)] mt-1">
+                    {#if item.modifiers.variantOptionIds?.length}
+                      Variant: {item.modifiers.variantOptionIds.length} option(s)
+                    {/if}
+                    {#if item.modifiers.modifierOptionIds?.length}
+                      Modifiers: {item.modifiers.modifierOptionIds.length}
+                    {/if}
+                  </p>
+                {/if}
               {/if}
             </div>
 

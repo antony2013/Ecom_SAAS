@@ -10,14 +10,44 @@ export const cartRepo = {
   async findCartById(cartId: string, storeId: string) {
     return db.query.carts.findFirst({
       where: and(eq(carts.id, cartId), eq(carts.storeId, storeId)),
-      with: { items: true },
+      with: {
+        items: {
+          with: {
+            product: true,
+            bundle: {
+              with: {
+                items: {
+                  with: {
+                    product: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
   },
 
   async findCartBySessionId(sessionId: string) {
     return db.query.carts.findFirst({
       where: eq(carts.sessionId, sessionId),
-      with: { items: true },
+      with: {
+        items: {
+          with: {
+            product: true,
+            bundle: {
+              with: {
+                items: {
+                  with: {
+                    product: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
   },
 

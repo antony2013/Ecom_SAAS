@@ -71,6 +71,13 @@
       "when": 1777202406932,
       "tag": "0009_unknown_zzzax",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777203557752,
+      "tag": "0010_right_orphan",
+      "breakpoints": true
     }
   ]
 }

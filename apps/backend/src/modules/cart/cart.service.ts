@@ -73,6 +73,7 @@ export const cartService = {
     params: {
       productId: string;
       quantity: number;
+      bundleId?: string;
       variantOptionIds?: string[];
       combinationKey?: string;
       modifierOptionIds?: string[];
@@ -84,6 +85,7 @@ export const cartService = {
     const itemPricing = await pricingService.computeItemPrice({
       storeId,
       productId: params.productId,
+      bundleId: params.bundleId,
       variantOptionIds: params.variantOptionIds,
       combinationKey: params.combinationKey,
       modifierOptionIds: params.modifierOptionIds,
@@ -139,6 +141,7 @@ export const cartService = {
     const item = await cartRepo.insertCartItem({
       cartId,
       productId: params.productId,
+      bundleId: params.bundleId,
       quantity: params.quantity,
       price,
       total: itemTotal,

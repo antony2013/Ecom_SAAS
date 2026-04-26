@@ -64,6 +64,7 @@ export default async function publicScope(fastify: FastifyInstance, _opts: Fasti
   // Register public routes (from modules/)
   fastify.register(import('../modules/store/store.route.public.js'), { prefix: '/store' });
   fastify.register(import('../modules/product/product.route.public.js'), { prefix: '/products' });
+  fastify.register(import('../modules/bundle/bundle.route.public.js'), { prefix: '/bundles' });
   fastify.register(import('../modules/review/review.route.public.js'), { prefix: '/reviews' });
   fastify.register(import('../modules/cart/cart.route.public.js'), { prefix: '/cart' });
   fastify.register(import('../modules/analytics/analytics.route.public.js'), { prefix: '/analytics' });

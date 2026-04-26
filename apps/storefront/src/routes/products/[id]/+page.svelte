@@ -8,7 +8,9 @@
   import ProductGrid from '$lib/components/product/ProductGrid.svelte';
   import { formatPrice, parseImages, calcDiscountedPrice, discountLabel } from '$lib/utils/format.js';
   import { Badge } from '$lib/components/ui/badge/index.js';
-  import { Clock, Package } from '@lucide/svelte';
+  import { Button } from '$lib/components/ui/button/index.js';
+  import { Clock, Package, ShoppingCart } from '@lucide/svelte';
+  import { addToCart } from '$lib/stores/cart.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -31,6 +33,20 @@
   let selectedCombinationKey = $state<string>('');
   let selectedModifierOptionIds = $state<string[]>([]);
   let quantity = $state(1);
+
+  // Bundle state
+  let addingBundle = $state<string | null>(null);
+
+  async function addBundleToCart(bundleId: string) {
+    addingBundle = bundleId;
+    try {
+      await addToCart(product.id, 1, bundleId);
+    } catch {
+      // failed
+    } finally {
+      addingBundle = null;
+    }
+  }
 
   // Compute effective price based on selections
   let effectivePrice = $derived.by(() => {
@@ -65,7 +81,7 @@
   {@html jsonLdHtml}
 </svelte:head>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:pb-8 pb-24">
   <div class="lg:grid lg:grid-cols-2 lg:gap-12">
     <!-- Image gallery -->
     <ImageGallery images={images} title={product.titleEn} />
@@ -122,6 +138,44 @@
       {#if product.descriptionEn}
         <div class="mt-6 prose text-[var(--color-text-secondary)]">
           {product.descriptionEn}
+        </div>
+      {/if}
+
+      <!-- Bundles -->
+      {#if data.bundles && data.bundles.length > 0}
+        <div class="mt-6 space-y-3">
+          <h3 class="text-sm font-semibold text-[var(--color-text)]">Buy as Bundle</h3>
+          {#each data.bundles as bundle (bundle.id)}
+            <div class="border border-[var(--color-border)] rounded-[var(--radius-md)] p-4 bg-[var(--color-surface)]">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-[var(--color-text)]">{bundle.name}</p>
+                  <p class="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                    {bundle.items?.length ?? 0} items
+                  </p>
+                  <div class="mt-2 space-y-1">
+                    {#each bundle.items ?? [] as bi (bi.id)}
+                      <p class="text-xs text-[var(--color-text-secondary)] truncate">
+                        {bi.product?.titleEn ?? 'Product'} × {bi.quantity}
+                      </p>
+                    {/each}
+                  </div>
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="text-base font-bold text-[var(--color-primary)]">{formatPrice(bundle.price)}</p>
+                  <Button
+                    size="sm"
+                    class="mt-2"
+                    disabled={addingBundle === bundle.id}
+                    onclick={() => addBundleToCart(bundle.id)}
+                  >
+                    <ShoppingCart class="size-3.5 mr-1" />
+                    {addingBundle === bundle.id ? 'Adding...' : 'Add Bundle'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          {/each}
         </div>
       {/if}
 
