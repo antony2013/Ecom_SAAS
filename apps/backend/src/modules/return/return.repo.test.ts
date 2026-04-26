@@ -1,219 +1,285 @@
 // Integration tests for Return repository — hits the real database.
-// Expects seeded store/order/customer/orderItem data; skips gracefully when absent.
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import { db } from '../../db/index.js';
 import { returns, returnItems, stores, orders, orderItems, customers } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { returnRepo } from './return.repo.js';
 
-// ─── Seed-data fixtures (resolved at runtime) ───
-let seededStore: typeof stores.$inferSelect | undefined;
-let seededOrder: typeof orders.$inferSelect | undefined;
-let seededCustomer: typeof customers.$inferSelect | undefined;
-let seededOrderItem: typeof orderItems.$inferSelect | undefined;
-let hasSeedData = false;
+// ─── Base fixtures (seeded or created in beforeAll) ───
+let storeId: string;
+let orderId: string;
+let customerId: string;
+let orderItemId: string;
 
-// Track created rows for cleanup
-let createdReturnId: string | undefined;
-let createdReturnItemId: string | undefined;
+// Flags so we only delete fixtures we created
+let createdStore = false;
+let createdCustomer = false;
+let createdOrder = false;
+let createdOrderItem = false;
+
+// ─── Per-test fixture IDs ───
+let testReturnId: string;
+let testReturnItemId: string;
 
 beforeAll(async () => {
-  try {
-    seededStore = await db.query.stores.findFirst();
-    seededOrder = await db.query.orders.findFirst();
-    seededCustomer = await db.query.customers.findFirst();
-    seededOrderItem = await db.query.orderItems.findFirst();
-    hasSeedData = !!(seededStore && seededOrder && seededCustomer && seededOrderItem);
-  } catch (err) {
-    console.warn(
-      '[return.repo.test] Database query failed — schema may be out of sync or DB unavailable.',
-      (err as Error).message,
-    );
-    hasSeedData = false;
+  // Look for existing seed data first
+  let store = await db.query.stores.findFirst();
+  let customer = await db.query.customers.findFirst();
+  let order = await db.query.orders.findFirst();
+  let orderItem = await db.query.orderItems.findFirst();
+
+  if (!store) {
+    [store] = await db
+      .insert(stores)
+      .values({
+        name: 'Return Test Store',
+        domain: `return-test-${Date.now()}.local`,
+        ownerEmail: `return-owner-${Date.now()}@test.local`,
+        status: 'active',
+      })
+      .returning();
+    createdStore = true;
   }
 
-  if (!hasSeedData) {
-    console.warn(
-      '[return.repo.test] Skipping tests — no seeded store/order/customer/orderItem data found. Run "pnpm db:seed" and ensure migrations are up to date.',
-    );
+  if (!customer) {
+    [customer] = await db
+      .insert(customers)
+      .values({
+        storeId: store.id,
+        email: `return-customer-${Date.now()}@test.local`,
+        password: 'password123',
+      })
+      .returning();
+    createdCustomer = true;
   }
+
+  if (!order) {
+    [order] = await db
+      .insert(orders)
+      .values({
+        storeId: store.id,
+        customerId: customer.id,
+        orderNumber: `RET-ORD-${Date.now()}`,
+        email: customer.email,
+        currency: 'USD',
+        subtotal: '100.00',
+        total: '100.00',
+      })
+      .returning();
+    createdOrder = true;
+  }
+
+  if (!orderItem) {
+    [orderItem] = await db
+      .insert(orderItems)
+      .values({
+        orderId: order.id,
+        storeId: store.id,
+        productTitle: 'Return Test Product',
+        quantity: 2,
+        price: '29.99',
+        total: '59.98',
+      })
+      .returning();
+    createdOrderItem = true;
+  }
+
+  storeId = store.id;
+  customerId = customer.id;
+  orderId = order.id;
+  orderItemId = orderItem.id;
+});
+
+beforeEach(async () => {
+  const ret = await returnRepo.create({
+    storeId,
+    orderId,
+    customerId,
+    status: 'requested',
+    reason: 'Defective item',
+    notes: 'Customer wants a replacement',
+  });
+  testReturnId = ret.id;
+
+  const retItem = await returnRepo.createItem({
+    returnId: testReturnId,
+    orderItemId,
+    quantity: 1,
+    reason: 'Broken on arrival',
+    condition: 'damaged',
+    refundAmount: '29.99',
+  });
+  testReturnItemId = retItem.id;
+});
+
+afterEach(async () => {
+  await db.delete(returnItems).where(eq(returnItems.id, testReturnItemId));
+  await db.delete(returns).where(eq(returns.id, testReturnId));
 });
 
 afterAll(async () => {
-  if (createdReturnItemId) {
-    await db.delete(returnItems).where(eq(returnItems.id, createdReturnItemId));
+  if (createdOrderItem) {
+    await db.delete(orderItems).where(eq(orderItems.id, orderItemId));
   }
-  if (createdReturnId) {
-    await db.delete(returns).where(eq(returns.id, createdReturnId));
+  if (createdOrder) {
+    await db.delete(orders).where(eq(orders.id, orderId));
+  }
+  if (createdCustomer) {
+    await db.delete(customers).where(eq(customers.id, customerId));
+  }
+  if (createdStore) {
+    await db.delete(stores).where(eq(stores.id, storeId));
   }
 });
-
-// ─── Helpers ───
-function skipIfNoData(testName: string, fn: () => Promise<void>) {
-  it(testName, async () => {
-    if (!hasSeedData) {
-      console.warn(`[return.repo.test] Skipping "${testName}" — no seeded data.`);
-      return;
-    }
-    await fn();
-  });
-}
 
 // ═══════════════════════════════════════════
 // create
 // ═══════════════════════════════════════════
-skipIfNoData('create inserts a return and returns it', async () => {
-  const data = {
-    storeId: seededStore!.id,
-    orderId: seededOrder!.id,
-    customerId: seededCustomer!.id,
-    status: 'requested',
-    reason: 'Defective item',
-    notes: 'Customer wants a replacement',
-  };
+describe('create', () => {
+  it('inserts a return and returns it', async () => {
+    const result = await returnRepo.create({
+      storeId,
+      orderId,
+      customerId,
+      status: 'requested',
+      reason: 'Defective item',
+      notes: 'Customer wants a replacement',
+    });
 
-  const result = await returnRepo.create(data);
-  expect(result).toBeDefined();
-  expect(result.storeId).toBe(data.storeId);
-  expect(result.orderId).toBe(data.orderId);
-  expect(result.customerId).toBe(data.customerId);
-  expect(result.status).toBe(data.status);
-  expect(result.reason).toBe(data.reason);
-  expect(result.notes).toBe(data.notes);
-  expect(result.id).toBeDefined();
-  expect(result.createdAt).toBeInstanceOf(Date);
-  expect(result.updatedAt).toBeInstanceOf(Date);
+    expect(result).toBeDefined();
+    expect(result.storeId).toBe(storeId);
+    expect(result.orderId).toBe(orderId);
+    expect(result.customerId).toBe(customerId);
+    expect(result.status).toBe('requested');
+    expect(result.reason).toBe('Defective item');
+    expect(result.notes).toBe('Customer wants a replacement');
+    expect(result.id).toBeDefined();
+    expect(result.createdAt).toBeInstanceOf(Date);
+    expect(result.updatedAt).toBeInstanceOf(Date);
 
-  createdReturnId = result.id;
+    // Clean up the extra row created by this test
+    await db.delete(returns).where(eq(returns.id, result.id));
+  });
 });
 
 // ═══════════════════════════════════════════
 // createItem
 // ═══════════════════════════════════════════
-skipIfNoData('createItem inserts a return item and returns it', async () => {
-  if (!createdReturnId) {
-    console.warn('[return.repo.test] Skipping createItem — no return created.');
-    return;
-  }
+describe('createItem', () => {
+  it('inserts a return item and returns it', async () => {
+    const result = await returnRepo.createItem({
+      returnId: testReturnId,
+      orderItemId,
+      quantity: 1,
+      reason: 'Broken on arrival',
+      condition: 'damaged',
+      refundAmount: '29.99',
+    });
 
-  const data = {
-    returnId: createdReturnId,
-    orderItemId: seededOrderItem!.id,
-    quantity: 1,
-    reason: 'Broken on arrival',
-    condition: 'damaged',
-    refundAmount: '29.99',
-  };
+    expect(result).toBeDefined();
+    expect(result.returnId).toBe(testReturnId);
+    expect(result.orderItemId).toBe(orderItemId);
+    expect(result.quantity).toBe(1);
+    expect(result.reason).toBe('Broken on arrival');
+    expect(result.condition).toBe('damaged');
+    expect(result.refundAmount).toBe('29.99');
+    expect(result.id).toBeDefined();
+    expect(result.createdAt).toBeInstanceOf(Date);
 
-  const result = await returnRepo.createItem(data);
-  expect(result).toBeDefined();
-  expect(result.returnId).toBe(data.returnId);
-  expect(result.orderItemId).toBe(data.orderItemId);
-  expect(result.quantity).toBe(data.quantity);
-  expect(result.reason).toBe(data.reason);
-  expect(result.condition).toBe(data.condition);
-  expect(result.refundAmount).toBe(data.refundAmount);
-  expect(result.id).toBeDefined();
-  expect(result.createdAt).toBeInstanceOf(Date);
-
-  createdReturnItemId = result.id;
+    // Clean up the extra row created by this test
+    await db.delete(returnItems).where(eq(returnItems.id, result.id));
+  });
 });
 
 // ═══════════════════════════════════════════
 // findById
 // ═══════════════════════════════════════════
-skipIfNoData('findById returns the correct return', async () => {
-  if (!createdReturnId) {
-    console.warn('[return.repo.test] Skipping findById — no return created.');
-    return;
-  }
+describe('findById', () => {
+  it('returns the correct return', async () => {
+    const result = await returnRepo.findById(testReturnId);
+    expect(result).toBeDefined();
+    expect(result!.id).toBe(testReturnId);
+    expect(result!.storeId).toBe(storeId);
+    expect(result!.orderId).toBe(orderId);
+    expect(result!.status).toBe('requested');
+  });
 
-  const result = await returnRepo.findById(createdReturnId);
-  expect(result).toBeDefined();
-  expect(result!.id).toBe(createdReturnId);
-  expect(result!.storeId).toBe(seededStore!.id);
-  expect(result!.orderId).toBe(seededOrder!.id);
-  expect(result!.status).toBe('requested');
-});
-
-skipIfNoData('findById returns null for nonexistent id', async () => {
-  const result = await returnRepo.findById('00000000-0000-0000-0000-000000000000');
-  expect(result).toBeNull();
+  it('returns null for nonexistent id', async () => {
+    const result = await returnRepo.findById('00000000-0000-0000-0000-000000000000');
+    expect(result).toBeNull();
+  });
 });
 
 // ═══════════════════════════════════════════
 // findByIdWithItems
 // ═══════════════════════════════════════════
-skipIfNoData('findByIdWithItems returns return with items array', async () => {
-  if (!createdReturnId) {
-    console.warn('[return.repo.test] Skipping findByIdWithItems — no return created.');
-    return;
-  }
+describe('findByIdWithItems', () => {
+  it('returns return with items array', async () => {
+    const result = await returnRepo.findByIdWithItems(testReturnId);
+    expect(result).toBeDefined();
+    expect(result!.id).toBe(testReturnId);
+    expect(Array.isArray(result!.items)).toBe(true);
 
-  const result = await returnRepo.findByIdWithItems(createdReturnId);
-  expect(result).toBeDefined();
-  expect(result!.id).toBe(createdReturnId);
-  expect(Array.isArray(result!.items)).toBe(true);
-
-  if (createdReturnItemId) {
-    const foundItem = result!.items.find((i) => i.id === createdReturnItemId);
+    const foundItem = result!.items.find((i) => i.id === testReturnItemId);
     expect(foundItem).toBeDefined();
-    expect(foundItem!.orderItemId).toBe(seededOrderItem!.id);
-  }
-});
+    expect(foundItem!.orderItemId).toBe(orderItemId);
+  });
 
-skipIfNoData('findByIdWithItems returns null when return not found', async () => {
-  const result = await returnRepo.findByIdWithItems('00000000-0000-0000-0000-000000000000');
-  expect(result).toBeNull();
+  it('returns null when return not found', async () => {
+    const result = await returnRepo.findByIdWithItems('00000000-0000-0000-0000-000000000000');
+    expect(result).toBeNull();
+  });
 });
 
 // ═══════════════════════════════════════════
 // findByStore
 // ═══════════════════════════════════════════
-skipIfNoData('findByStore returns returns for the given store', async () => {
-  if (!createdReturnId) {
-    console.warn('[return.repo.test] Skipping findByStore — no return created.');
-    return;
-  }
+describe('findByStore', () => {
+  it('returns returns for the given store with total count', async () => {
+    const result = await returnRepo.findByStore(storeId, 1, 20);
+    expect(Array.isArray(result.data)).toBe(true);
+    expect(result.data.length).toBeGreaterThan(0);
+    expect(result.total).toBeGreaterThan(0);
+    expect(result.data.some((r) => r.id === testReturnId)).toBe(true);
+  });
 
-  const result = await returnRepo.findByStore(seededStore!.id, 1, 20);
-  expect(Array.isArray(result)).toBe(true);
-  expect(result.length).toBeGreaterThan(0);
-  expect(result.some((r) => r.id === createdReturnId)).toBe(true);
+  it('respects pagination', async () => {
+    const result = await returnRepo.findByStore(storeId, 1, 1);
+    expect(Array.isArray(result.data)).toBe(true);
+    expect(result.data.length).toBeLessThanOrEqual(1);
+    expect(result.total).toBeGreaterThanOrEqual(1);
+  });
 });
 
-skipIfNoData('findByStore respects pagination', async () => {
-  const result = await returnRepo.findByStore(seededStore!.id, 1, 1);
-  expect(Array.isArray(result)).toBe(true);
-  expect(result.length).toBeLessThanOrEqual(1);
+// ═══════════════════════════════════════════
+// findByOrder
+// ═══════════════════════════════════════════
+describe('findByOrder', () => {
+  it('returns returns for the given order', async () => {
+    const result = await returnRepo.findByOrder(orderId);
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.some((r) => r.id === testReturnId)).toBe(true);
+  });
 });
 
 // ═══════════════════════════════════════════
 // updateStatus
 // ═══════════════════════════════════════════
-skipIfNoData('updateStatus updates status and returns the row', async () => {
-  if (!createdReturnId) {
-    console.warn('[return.repo.test] Skipping updateStatus — no return created.');
-    return;
-  }
-
-  const result = await returnRepo.updateStatus(createdReturnId, 'approved', {
-    adminNotes: 'Approved after inspection',
+describe('updateStatus', () => {
+  it('updates status and returns the row', async () => {
+    const result = await returnRepo.updateStatus(testReturnId, 'approved', {
+      adminNotes: 'Approved after inspection',
+    });
+    expect(result).toBeDefined();
+    expect(result!.id).toBe(testReturnId);
+    expect(result!.status).toBe('approved');
+    expect(result!.adminNotes).toBe('Approved after inspection');
+    expect(result!.updatedAt).toBeInstanceOf(Date);
   });
-  expect(result).toBeDefined();
-  expect(result!.id).toBe(createdReturnId);
-  expect(result!.status).toBe('approved');
-  expect(result!.adminNotes).toBe('Approved after inspection');
-  expect(result!.updatedAt).toBeInstanceOf(Date);
-});
 
-skipIfNoData('updateStatus works without extra fields', async () => {
-  if (!createdReturnId) {
-    console.warn('[return.repo.test] Skipping updateStatus — no return created.');
-    return;
-  }
-
-  const result = await returnRepo.updateStatus(createdReturnId, 'rejected');
-  expect(result).toBeDefined();
-  expect(result!.status).toBe('rejected');
+  it('works without extra fields', async () => {
+    const result = await returnRepo.updateStatus(testReturnId, 'rejected');
+    expect(result).toBeDefined();
+    expect(result!.status).toBe('rejected');
+  });
 });
