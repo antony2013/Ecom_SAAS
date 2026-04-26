@@ -1,4 +1,5 @@
 // Upload Service - File validation and storage (local in dev, S3 in production)
+import type { Queue } from 'bullmq';
 import { fileTypeFromBuffer } from 'file-type';
 import { writeFileSync, mkdirSync, unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -42,7 +43,7 @@ function getS3Client(): S3Client {
 
 const LOCAL_UPLOADS_DIR = join(process.cwd(), 'uploads');
 
-export const createUploadService = () => {
+export const createUploadService = (imageQueue?: Queue) => {
   // Ensure local uploads directory exists
   if (!existsSync(LOCAL_UPLOADS_DIR)) {
     mkdirSync(LOCAL_UPLOADS_DIR, { recursive: true });
@@ -104,6 +105,15 @@ export const createUploadService = () => {
         }));
 
         const url = `https://${env.S3_BUCKET}.s3.${env.S3_REGION || 'us-east-1'}.amazonaws.com/${filename}`;
+
+        // Queue image optimization job for async processing
+        if (imageQueue) {
+          await imageQueue.add('process-image', {
+            storeId,
+            originalKey: filename,
+            originalUrl: url,
+          });
+        }
 
         return { filename, mimeType: fileType.mime, size: buffer.length, url };
       }

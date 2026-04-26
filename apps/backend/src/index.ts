@@ -19,6 +19,7 @@ import { pricingService } from './modules/pricing/pricing.service.js';
 import { staffService } from './modules/staff/staff.service.js';
 import { paymentService } from './modules/payment/payment.service.js';
 import { createEmailProcessor } from './services/emailProcessor.service.js';
+import { processImageJob } from './services/imageProcessor.service.js';
 import { backupService } from './modules/backup/backup.service.js';
 import { ErrorCodes } from './errors/codes.js';
 import { sql } from 'drizzle-orm';
@@ -110,7 +111,7 @@ fastify.addHook('onResponse', async (request, reply) => {
 const cacheService = createCacheService(fastify.redis);
 const queueService = createQueueService(env.REDIS_URL);
 const emailService = createEmailService(queueService.emailQueue);
-const uploadService = createUploadService();
+const uploadService = createUploadService(queueService.imageQueue);
 fastify.decorate('cacheService', cacheService);
 fastify.decorate('queueService', queueService);
 fastify.decorate('emailService', emailService);
@@ -134,6 +135,9 @@ queueService.createWorker('webhooks', async (job) => {
   const { hook, event, payload } = job.data as { hook: any; event: string; payload: Record<string, unknown> };
   await webhookService.deliverWebhook(hook, event, payload);
 });
+
+// Start image worker to process uploaded images (WebP/AVIF conversion)
+queueService.createWorker('images', processImageJob);
 
 // Health check endpoints (no auth)
 fastify.get('/health', async () => ({
