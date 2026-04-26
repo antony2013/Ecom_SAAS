@@ -220,6 +220,42 @@ fastify.get('/health/detailed', async (request, reply) => {
   };
 });
 
+// Metrics endpoint - structured observability data (protected by API key or internal network)
+fastify.get('/health/metrics', async (request, reply) => {
+  const clientIp = request.ip;
+  if (!isPrivateIp(clientIp)) {
+    reply.status(403).send({ error: 'Forbidden', message: 'Access denied from this IP' });
+    return;
+  }
+
+  const healthKey = request.headers['x-health-key'] || (request.query as Record<string, string>)['health_key'];
+  if (env.HEALTH_CHECK_KEY && healthKey !== env.HEALTH_CHECK_KEY) {
+    reply.status(403).send({ error: 'Forbidden', message: 'Invalid health check key' });
+    return;
+  }
+
+  const mem = process.memoryUsage();
+  const uptime = process.uptime();
+  let poolMetrics: { active: number; idle: number; waiting: number } | undefined;
+  try {
+    poolMetrics = await getPoolMetrics();
+  } catch {
+    poolMetrics = undefined;
+  }
+
+  return {
+    uptime_seconds: uptime,
+    memory: {
+      rss_bytes: mem.rss,
+      heap_used_bytes: mem.heapUsed,
+      heap_total_bytes: mem.heapTotal,
+      external_bytes: mem.external,
+    },
+    pool: poolMetrics,
+    timestamp: new Date().toISOString(),
+  };
+});
+
 fastify.get('/health/backup', async (_request, _reply) => {
   const latest = await backupService.getLatestBackup();
   return {
