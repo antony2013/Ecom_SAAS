@@ -29,6 +29,12 @@ export const createQueueService = (redisUrl: string) => {
   // Analytics queue
   const analyticsQueue = new Queue('analytics', { connection });
 
+  // Webhook delivery queue
+  const webhookQueue = new Queue('webhooks', { connection });
+
+  // Abandoned cart queue
+  const abandonedCartQueue = new Queue('abandoned-cart', { connection });
+
   // Track workers for graceful shutdown
   const workers: Worker[] = [];
 
@@ -48,12 +54,15 @@ export const createQueueService = (redisUrl: string) => {
     emailQueue,
     imageQueue,
     analyticsQueue,
+    webhookQueue,
+    abandonedCartQueue,
     createWorker,
     async closeAll(): Promise<void> {
       await Promise.all(workers.map((w) => w.close()));
       await emailQueue.close();
       await imageQueue.close();
       await analyticsQueue.close();
+      await abandonedCartQueue.close();
     },
   };
 };

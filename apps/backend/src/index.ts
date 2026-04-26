@@ -122,6 +122,10 @@ fastify.decorate('paymentService', paymentService);
 const emailProcessor = createEmailProcessor(emailService);
 queueService.createWorker('emails', emailProcessor);
 
+// Start abandoned cart worker to process abandoned cart reminders
+import { createAbandonedCartProcessor } from './services/abandonedCartProcessor.service.js';
+queueService.createWorker('abandoned-cart', createAbandonedCartProcessor(queueService));
+
 // Start webhook worker to process queued webhook deliveries
 import { webhookService } from './modules/webhook/webhook.service.js';
 queueService.createWorker('webhooks', async (job) => {
