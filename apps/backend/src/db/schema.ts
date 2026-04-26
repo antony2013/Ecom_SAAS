@@ -26,6 +26,7 @@ export const merchantPlans = pgTable("merchant_plans", {
   features: json("features").$type<string[]>(),
   maxProducts: integer("max_products").default(100),
   maxStorage: integer("max_storage").default(1024),
+  maxStaff: integer("max_staff").default(3),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -68,6 +69,12 @@ export const stores = pgTable("stores", {
   heroCtaText: text("hero_cta_text").default("Explore Collection"),
   heroCtaLink: text("hero_cta_link").default("#products"),
   heroEnabled: boolean("hero_enabled").default(true),
+  customDomain: text("custom_domain").unique(),
+  customDomainVerified: boolean("custom_domain_verified").default(false),
+  customDomainVerifiedAt: timestamp("custom_domain_verified_at"),
+  trialStartedAt: timestamp("trial_started_at"),
+  trialEndsAt: timestamp("trial_ends_at"),
+  usedStorage: integer("used_storage").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -465,6 +472,8 @@ export const storesRelations = relations(stores, ({ many, one }) => ({
   analytics: many(storeAnalytics),
   paymentProviders: many(paymentProviders),
   payments: many(payments),
+  webhooks: many(webhooks),
+  merchantNotifications: many(merchantNotifications),
 }));
 
 export const categoriesRelations = relations(categories, ({ many, one }) => ({
@@ -938,4 +947,218 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
     fields: [payments.orderId],
     references: [orders.id],
   }),
+}));
+
+// ---- Webhooks ----
+
+export const webhooks = pgTable("webhooks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  storeId: uuid("store_id").references(() => stores.id).notNull(),
+  url: text("url").notNull(),
+  events: json("events").$type<string[]>().notNull(),
+  secret: text("secret").notNull(),
+  isActive: boolean("is_active").default(true),
+  lastDeliveredAt: timestamp("last_delivered_at"),
+  lastFailureAt: timestamp("last_failure_at"),
+  failureCount: integer("failure_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  webhookId: uuid("webhook_id").references(() => webhooks.id, { onDelete: "cascade" }).notNull(),
+  event: text("event").notNull(),
+  payload: json("payload").notNull(),
+  status: text("status").default("pending").notNull(),
+  responseStatus: integer("response_status"),
+  responseBody: text("response_body"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ---- Exchange Rates ----
+
+export const exchangeRates = pgTable("exchange_rates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  baseCurrency: text("base_currency").notNull(),
+  targetCurrency: text("target_currency").notNull(),
+  rate: decimal("rate").notNull(),
+  source: text("source").default("manual"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  unique("exchange_rates_base_target_idx").on(table.baseCurrency, table.targetCurrency),
+]);
+
+// ---- Merchant Notifications ----
+
+export const merchantNotifications = pgTable("merchant_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  storeId: uuid("store_id").references(() => stores.id).notNull(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  data: json("data"),
+  isRead: boolean("is_read").default(false),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Super Admin Tables ───
+
+export const supportTickets = pgTable("support_tickets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  storeId: uuid("store_id").references(() => stores.id).notNull(),
+  subject: text("subject").notNull(),
+  description: text("description").notNull(),
+  status: text("status").default("open").notNull(),
+  priority: text("priority").default("medium").notNull(),
+  assignedTo: uuid("assigned_to").references(() => superAdmins.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const ticketReplies = pgTable("ticket_replies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ticketId: uuid("ticket_id").references(() => supportTickets.id, { onDelete: 'cascade' }).notNull(),
+  authorId: uuid("author_id").notNull(),
+  authorType: text("author_type").notNull(), // 'superadmin' | 'merchant'
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const platformSettings = pgTable("platform_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  type: text("type").default("string").notNull(),
+  updatedBy: uuid("updated_by").references(() => superAdmins.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const adminNotifications = pgTable("admin_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  targetScope: text("target_scope").default("all").notNull(),
+  targetStoreId: uuid("target_store_id").references(() => stores.id),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const invoices = pgTable("invoices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  storeId: uuid("store_id").references(() => stores.id).notNull(),
+  planId: uuid("plan_id").references(() => merchantPlans.id),
+  amount: decimal("amount").notNull(),
+  status: text("status").default("pending").notNull(),
+  periodStart: timestamp("period_start"),
+  periodEnd: timestamp("period_end"),
+  pdfUrl: text("pdf_url"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ─── Super Admin Relations ───
+
+export const supportTicketsRelations = relations(supportTickets, ({ one, many }) => ({
+  store: one(stores, {
+    fields: [supportTickets.storeId],
+    references: [stores.id],
+  }),
+  assignedAdmin: one(superAdmins, {
+    fields: [supportTickets.assignedTo],
+    references: [superAdmins.id],
+  }),
+  replies: many(ticketReplies),
+}));
+
+export const ticketRepliesRelations = relations(ticketReplies, ({ one }) => ({
+  ticket: one(supportTickets, {
+    fields: [ticketReplies.ticketId],
+    references: [supportTickets.id],
+  }),
+}));
+
+export const invoicesRelations = relations(invoices, ({ one }) => ({
+  store: one(stores, {
+    fields: [invoices.storeId],
+    references: [stores.id],
+  }),
+  plan: one(merchantPlans, {
+    fields: [invoices.planId],
+    references: [merchantPlans.id],
+  }),
+}));
+
+// ---- New Table Relations ----
+
+export const webhooksRelations = relations(webhooks, ({ one, many }) => ({
+  store: one(stores, {
+    fields: [webhooks.storeId],
+    references: [stores.id],
+  }),
+  deliveries: many(webhookDeliveries),
+}));
+
+export const webhookDeliveriesRelations = relations(webhookDeliveries, ({ one }) => ({
+  webhook: one(webhooks, {
+    fields: [webhookDeliveries.webhookId],
+    references: [webhooks.id],
+  }),
+}));
+
+export const exchangeRatesRelations = relations(exchangeRates, () => ({}));
+
+export const merchantNotificationsRelations = relations(merchantNotifications, ({ one }) => ({
+  store: one(stores, {
+    fields: [merchantNotifications.storeId],
+    references: [stores.id],
+  }),
+}));
+
+// ─── Returns ───
+
+export const returns = pgTable("returns", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  storeId: uuid("store_id").notNull().references(() => stores.id),
+  orderId: uuid("order_id").notNull().references(() => orders.id),
+  customerId: uuid("customer_id").references(() => customers.id),
+  status: text("status").default("requested").notNull(),
+  reason: text("reason").notNull(),
+  notes: text("notes"),
+  adminNotes: text("admin_notes"),
+  refundAmount: decimal("refund_amount", { precision: 10, scale: 2 }),
+  refundMethod: text("refund_method"),
+  refundTransactionId: text("refund_transaction_id"),
+  shippedAt: timestamp("shipped_at"),
+  receivedAt: timestamp("received_at"),
+  inspectedAt: timestamp("inspected_at"),
+  refundedAt: timestamp("refunded_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const returnItems = pgTable("return_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  returnId: uuid("return_id").notNull().references(() => returns.id),
+  orderItemId: uuid("order_item_id").notNull().references(() => orderItems.id),
+  quantity: integer("quantity").notNull(),
+  reason: text("reason"),
+  condition: text("condition"),
+  refundAmount: decimal("refund_amount", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const returnsRelations = relations(returns, ({ one, many }) => ({
+  store: one(stores, { fields: [returns.storeId], references: [stores.id] }),
+  order: one(orders, { fields: [returns.orderId], references: [orders.id] }),
+  customer: one(customers, { fields: [returns.customerId], references: [customers.id] }),
+  items: many(returnItems),
+}));
+
+export const returnItemsRelations = relations(returnItems, ({ one }) => ({
+  return: one(returns, { fields: [returnItems.returnId], references: [returns.id] }),
+  orderItem: one(orderItems, { fields: [returnItems.orderItemId], references: [orderItems.id] }),
 }));

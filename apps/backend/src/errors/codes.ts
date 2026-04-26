@@ -2,6 +2,9 @@
 // Clients match on `code` instead of parsing `message` strings.
 
 export const ErrorCodes = {
+  // Generic
+  NOT_FOUND: 'NOT_FOUND',
+
   // Auth
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   TOKEN_EXPIRED: 'TOKEN_EXPIRED',
@@ -11,6 +14,7 @@ export const ErrorCodes = {
   STORE_SUSPENDED: 'STORE_SUSPENDED',
   STORE_NOT_FOUND: 'STORE_NOT_FOUND',
   PLAN_EXPIRED: 'PLAN_EXPIRED',
+  PLAN_LIMIT_EXCEEDED: 'PLAN_LIMIT_EXCEEDED',
 
   // Product
   PRODUCT_NOT_FOUND: 'PRODUCT_NOT_FOUND',
@@ -96,6 +100,11 @@ export const ErrorCodes = {
   PAYMENT_FAILED: 'PAYMENT_FAILED',
   PAYMENT_PROVIDER_NOT_ENABLED: 'PAYMENT_PROVIDER_NOT_ENABLED',
   PAYMENT_ALREADY_PROCESSED: 'PAYMENT_ALREADY_PROCESSED',
+
+  // Returns
+  RETURN_NOT_FOUND: 'RETURN_NOT_FOUND',
+  RETURN_INVALID_STATUS: 'RETURN_INVALID_STATUS',
+  RETURN_UNAUTHORIZED: 'RETURN_UNAUTHORIZED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
