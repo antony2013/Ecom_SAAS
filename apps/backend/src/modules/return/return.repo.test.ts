@@ -267,7 +267,7 @@ describe('findByOrder', () => {
 // ═══════════════════════════════════════════
 describe('updateStatus', () => {
   it('updates status and returns the row', async () => {
-    const result = await returnRepo.updateStatus(testReturnId, 'approved', {
+    const result = await returnRepo.updateStatus(testReturnId, storeId, 'approved', {
       adminNotes: 'Approved after inspection',
     });
     expect(result).toBeDefined();
@@ -278,7 +278,7 @@ describe('updateStatus', () => {
   });
 
   it('works without extra fields', async () => {
-    const result = await returnRepo.updateStatus(testReturnId, 'rejected');
+    const result = await returnRepo.updateStatus(testReturnId, storeId, 'rejected');
     expect(result).toBeDefined();
     expect(result!.status).toBe('rejected');
   });

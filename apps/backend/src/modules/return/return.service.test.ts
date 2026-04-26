@@ -142,7 +142,7 @@ describe('createReturn', () => {
     expect(result!.items.length).toBe(1);
 
     // Clean up
-    const ids = result!.items.map((i: any) => i.id);
+    const ids = result!.items.map((i) => i.id);
     for (const id of ids) await db.delete(returnItems).where(eq(returnItems.id, id));
     await db.delete(returns).where(eq(returns.id, result!.id));
   });
@@ -152,6 +152,17 @@ describe('createReturn', () => {
       returnService.createReturn({
         storeId,
         orderId: '00000000-0000-0000-0000-000000000000',
+        reason: 'Test',
+        items: [{ orderItemId, quantity: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: 'ORDER_NOT_FOUND' });
+  });
+
+  it('throws ORDER_NOT_FOUND for order from different store', async () => {
+    await expect(
+      returnService.createReturn({
+        storeId: '00000000-0000-0000-0000-000000000000',
+        orderId,
         reason: 'Test',
         items: [{ orderItemId, quantity: 1 }],
       }),
@@ -184,6 +195,57 @@ describe('createReturn', () => {
 
     await db.delete(orders).where(eq(orders.id, cancelledOrder.id));
   });
+
+  it('throws VALIDATION_ERROR when order item does not belong to this order', async () => {
+    const [otherOrder] = await db
+      .insert(orders)
+      .values({
+        storeId,
+        customerId,
+        orderNumber: `OTHER-${Date.now()}`,
+        email: 'other@test.local',
+        currency: 'USD',
+        subtotal: '10.00',
+        total: '10.00',
+      })
+      .returning();
+
+    const [otherOrderItem] = await db
+      .insert(orderItems)
+      .values({
+        orderId: otherOrder.id,
+        storeId,
+        productTitle: 'Other Product',
+        quantity: 1,
+        price: '10.00',
+        total: '10.00',
+      })
+      .returning();
+
+    await expect(
+      returnService.createReturn({
+        storeId,
+        orderId,
+        reason: 'Test',
+        items: [{ orderItemId: otherOrderItem.id, quantity: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+
+    await db.delete(orderItems).where(eq(orderItems.id, otherOrderItem.id));
+    await db.delete(orders).where(eq(orders.id, otherOrder.id));
+  });
+
+  it('throws VALIDATION_ERROR when return quantity exceeds purchased quantity', async () => {
+    // beforeEach already created a return with quantity 1 for an orderItem with quantity 2
+    await expect(
+      returnService.createReturn({
+        storeId,
+        orderId,
+        reason: 'Test',
+        items: [{ orderItemId, quantity: 2 }],
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
 });
 
 // ═══════════════════════════════════════════
@@ -195,6 +257,46 @@ describe('updateStatus', () => {
     expect(result).toBeDefined();
     expect(result!.status).toBe('approved');
     expect(result!.adminNotes).toBe('Looks good');
+  });
+
+  it('rejects a requested return', async () => {
+    const result = await returnService.updateStatus(testReturnId, storeId, 'rejected', 'Bad condition');
+    expect(result).toBeDefined();
+    expect(result!.status).toBe('rejected');
+  });
+
+  it('transitions approved -> received', async () => {
+    await returnService.updateStatus(testReturnId, storeId, 'approved');
+    const result = await returnService.updateStatus(testReturnId, storeId, 'received');
+    expect(result).toBeDefined();
+    expect(result!.status).toBe('received');
+    expect(result!.receivedAt).toBeInstanceOf(Date);
+  });
+
+  it('transitions received -> inspected', async () => {
+    await returnService.updateStatus(testReturnId, storeId, 'approved');
+    await returnService.updateStatus(testReturnId, storeId, 'received');
+    const result = await returnService.updateStatus(testReturnId, storeId, 'inspected');
+    expect(result).toBeDefined();
+    expect(result!.status).toBe('inspected');
+    expect(result!.inspectedAt).toBeInstanceOf(Date);
+  });
+
+  it('transitions inspected -> refunded', async () => {
+    await returnService.updateStatus(testReturnId, storeId, 'approved');
+    await returnService.updateStatus(testReturnId, storeId, 'received');
+    await returnService.updateStatus(testReturnId, storeId, 'inspected');
+    const result = await returnService.updateStatus(testReturnId, storeId, 'refunded');
+    expect(result).toBeDefined();
+    expect(result!.status).toBe('refunded');
+    expect(result!.refundedAt).toBeInstanceOf(Date);
+  });
+
+  it('throws RETURN_INVALID_STATUS for invalid approved -> refunded', async () => {
+    await returnService.updateStatus(testReturnId, storeId, 'approved');
+    await expect(
+      returnService.updateStatus(testReturnId, storeId, 'refunded'),
+    ).rejects.toMatchObject({ code: 'RETURN_INVALID_STATUS' });
   });
 
   it('rejects invalid status transitions', async () => {
@@ -232,10 +334,13 @@ describe('getReturn', () => {
 // listReturns
 // ═══════════════════════════════════════════
 describe('listReturns', () => {
-  it('returns returns for the store', async () => {
+  it('returns returns for the store with pagination', async () => {
     const result = await returnService.listReturns(storeId, 1, 20);
     expect(Array.isArray(result.data)).toBe(true);
-    expect(result.total).toBeGreaterThanOrEqual(1);
+    expect(result.pagination.total).toBeGreaterThanOrEqual(1);
+    expect(result.pagination.page).toBe(1);
+    expect(result.pagination.limit).toBe(20);
+    expect(result.pagination.totalPages).toBeGreaterThanOrEqual(1);
     expect(result.data.some((r) => r.id === testReturnId)).toBe(true);
   });
 });

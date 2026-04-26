@@ -1,7 +1,7 @@
 // Return repository — Drizzle queries only. No business logic, no ErrorCodes.
 import { db } from '../../db/index.js';
 import { returns, returnItems } from '../../db/schema.js';
-import { eq, desc, count } from 'drizzle-orm';
+import { eq, desc, count, and } from 'drizzle-orm';
 import type { DbOrTx } from '../_shared/db-types.js';
 
 export const returnRepo = {
@@ -22,8 +22,9 @@ export const returnRepo = {
     return row ?? null;
   },
 
-  async findByIdWithItems(id: string) {
-    const result = await db.query.returns.findFirst({
+  async findByIdWithItems(id: string, tx?: DbOrTx) {
+    const executor = tx ?? db;
+    const result = await executor.query.returns.findFirst({
       where: eq(returns.id, id),
       with: { items: true },
     });
@@ -55,6 +56,7 @@ export const returnRepo = {
 
   async updateStatus(
     id: string,
+    storeId: string,
     status: string,
     extra?: Partial<typeof returns.$inferInsert>,
     tx?: DbOrTx,
@@ -63,7 +65,7 @@ export const returnRepo = {
     const [row] = await executor
       .update(returns)
       .set({ status, ...extra, updatedAt: new Date() })
-      .where(eq(returns.id, id))
+      .where(and(eq(returns.id, id), eq(returns.storeId, storeId)))
       .returning();
     return row;
   },

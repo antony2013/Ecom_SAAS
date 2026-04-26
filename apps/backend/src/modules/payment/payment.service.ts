@@ -7,7 +7,7 @@ import { ErrorCodes } from '../../errors/codes.js';
 import { orderRepo } from '../order/order.repo.js';
 import * as repo from './payment.repo.js';
 import { encryptConfig, decryptConfig } from '../../lib/encryption.js';
-import { toCents } from '../../lib/decimal.js';
+import { toCents, isPositive } from '../../lib/decimal.js';
 
 /** Mask a secret string, showing only the last 4 characters. */
 function maskSecret(value: string | undefined): string {
@@ -252,6 +252,11 @@ export const paymentService = {
   // ─── Refund payment ───
 
   async refundPayment(storeId: string, orderId: string, amount: string) {
+    // M2: Validate amount
+    if (!isPositive(amount)) {
+      throw Object.assign(new Error('Refund amount must be greater than zero'), { code: ErrorCodes.VALIDATION_ERROR });
+    }
+
     const orderPayments = await db
       .select()
       .from(payments)
@@ -261,6 +266,10 @@ export const paymentService = {
     const successfulPayment = orderPayments.find((p) => p.status === 'completed');
     if (!successfulPayment) {
       throw Object.assign(new Error('No successful payment found for refund'), { code: ErrorCodes.PAYMENT_FAILED });
+    }
+
+    if (toCents(amount) > toCents(successfulPayment.amount)) {
+      throw Object.assign(new Error('Refund amount exceeds payment amount'), { code: ErrorCodes.VALIDATION_ERROR });
     }
 
     const provider = successfulPayment.provider;
@@ -278,12 +287,16 @@ export const paymentService = {
       throw Object.assign(new Error('Failed to decrypt provider config'), { code: ErrorCodes.PAYMENT_FAILED });
     }
 
+    // M1: Generate idempotency key
+    const iKey = generateIdempotencyKey();
+
     if (provider === 'stripe') {
       const response = await fetch('https://api.stripe.com/v1/refunds', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Authorization': `Bearer ${config.secret_key}`,
+          'Idempotency-Key': iKey,
         },
         body: new URLSearchParams({
           payment_intent: successfulPayment.providerPaymentId ?? '',
@@ -299,6 +312,19 @@ export const paymentService = {
       }
 
       const refund = await response.json() as { id: string };
+
+      // M3: Persist refund result
+      await db.update(payments)
+        .set({
+          metadata: {
+            refundId: refund.id,
+            refundedAt: new Date().toISOString(),
+            refundAmount: amount,
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(payments.id, successfulPayment.id));
+
       return { success: true, refundId: refund.id };
     }
 
@@ -310,6 +336,7 @@ export const paymentService = {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Basic ${Buffer.from(`${config.key_id}:${config.key_secret}`).toString('base64')}`,
+            'Idempotency-Key': iKey,
           },
           body: JSON.stringify({
             amount: toCents(amount),
@@ -325,6 +352,19 @@ export const paymentService = {
       }
 
       const refund = await response.json() as { id: string };
+
+      // M3: Persist refund result
+      await db.update(payments)
+        .set({
+          metadata: {
+            refundId: refund.id,
+            refundedAt: new Date().toISOString(),
+            refundAmount: amount,
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(payments.id, successfulPayment.id));
+
       return { success: true, refundId: refund.id };
     }
 
