@@ -17,10 +17,19 @@ export default async function publicPaymentRoutes(fastify: FastifyInstance) {
       return;
     }
     const providers = await paymentService.getProviders(request.storeId);
-    // Only return enabled providers with minimal info (no config/keys)
+    // Return enabled providers with minimal info; expose publishable keys for wallets
     const enabled = providers
       .filter((p) => p.isEnabled)
-      .map((p) => ({ provider: p.provider, isEnabled: p.isEnabled }));
+      .map((p) => {
+        const base = { provider: p.provider, isEnabled: p.isEnabled };
+        if (p.provider === 'stripe' && p.config && typeof p.config === 'object' && 'publishable_key' in p.config) {
+          return { ...base, publishableKey: (p.config as Record<string, string>).publishable_key };
+        }
+        if (p.provider === 'razorpay' && p.config && typeof p.config === 'object' && 'key_id' in p.config) {
+          return { ...base, keyId: (p.config as Record<string, string>).key_id };
+        }
+        return base;
+      });
     return { providers: enabled };
   });
 

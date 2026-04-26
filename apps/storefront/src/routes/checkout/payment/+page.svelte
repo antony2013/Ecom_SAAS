@@ -6,6 +6,7 @@
   import { Input } from '$lib/components/ui/input/index.js';
   import { Label } from '$lib/components/ui/label/index.js';
   import { goto } from '$app/navigation';
+  import { getCookie } from '$lib/api/client.js';
 
   let { data }: { data: PageData } = $props();
 
@@ -28,6 +29,11 @@
   let paymentLoading = $state(false);
   let paymentError = $state('');
 
+  // Apple Pay / Google Pay state
+  let showPaymentRequestButton = $state(false);
+  let paymentRequestError = $state('');
+  let stripeInitialized = $state(false);
+
   // Available providers from server data
   const enabledProviders = $derived(
     (data.paymentProviders ?? []).filter((p: any) => p.isEnabled)
@@ -37,6 +43,15 @@
   $effect(() => {
     if (enabledProviders.length === 1 && !selectedProvider) {
       selectedProvider = enabledProviders[0].provider;
+    }
+  });
+
+  // Initialize Stripe Payment Request for Apple Pay / Google Pay
+  $effect(() => {
+    const stripeProvider = (enabledProviders as any[]).find((p: any) => p.provider === 'stripe' && p.publishableKey);
+    if (stripeProvider?.publishableKey && !stripeInitialized && typeof window !== 'undefined') {
+      stripeInitialized = true;
+      initPaymentRequest(stripeProvider.publishableKey);
     }
   });
 
@@ -56,9 +71,13 @@
     if (!data.cart) return;
     calculatingTax = true;
     try {
+      const csrfToken = getCookie('csrf_token');
       const res = await fetch('/api/v1/public/tax/calculate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify({
           country: 'US',
@@ -87,9 +106,13 @@
   async function applyCoupon() {
     couponError = '';
     try {
+      const csrfToken = getCookie('csrf_token');
       const res = await fetch('/api/v1/customer/coupons/validate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify({
           code: couponCode,
@@ -124,6 +147,74 @@
     cod: 'Cash on Delivery',
   };
 
+  // ─── Initialize Stripe Payment Request Button ───
+  async function initPaymentRequest(publishableKey: string) {
+    try {
+      if (!document.getElementById('stripe-js')) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.id = 'stripe-js';
+          script.src = 'https://js.stripe.com/v3/';
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load Stripe SDK'));
+          document.body.appendChild(script);
+        });
+      }
+
+      // @ts-expect-error Stripe global
+      const stripe = Stripe(publishableKey);
+      const paymentRequest = stripe.paymentRequest({
+        country: 'US',
+        currency: (((data.cart as any)?.currency) ?? 'USD').toLowerCase(),
+        total: {
+          label: 'Total',
+          amount: Math.round(parseFloat(effectiveTotal) * 100),
+        },
+        requestPayerName: true,
+        requestPayerEmail: true,
+      });
+
+      const canMakePayment = await paymentRequest.canMakePayment();
+      if (canMakePayment) {
+        showPaymentRequestButton = true;
+
+        const elements = stripe.elements();
+        const prButton = elements.create('paymentRequestButton', {
+          paymentRequest,
+          style: {
+            paymentRequestButton: {
+              type: 'default',
+              theme: 'dark',
+              height: '44px',
+            },
+          },
+        });
+
+        // Mount after the container renders
+        setTimeout(() => {
+          const container = document.getElementById('payment-request-button');
+          if (container) {
+            prButton.mount('#payment-request-button');
+          }
+        }, 0);
+
+        paymentRequest.on('paymentmethod', async (ev: any) => {
+          try {
+            sessionStorage.setItem('checkout_payment_method_id', ev.paymentMethod.id);
+            sessionStorage.setItem('checkout_use_payment_request', 'true');
+            ev.complete('success');
+            goto('/checkout/confirm');
+          } catch (e: any) {
+            ev.complete('fail');
+            paymentRequestError = e.message || 'Payment failed';
+          }
+        });
+      }
+    } catch (e: any) {
+      paymentRequestError = e.message || 'Failed to initialize payment request';
+    }
+  }
+
   // ─── Proceed to confirm with payment method stored ───
   function proceedToConfirm() {
     paymentError = '';
@@ -150,7 +241,8 @@
   <title>Payment | Checkout</title>
 </svelte:head>
 
-<CheckoutStepper {steps} currentStep={1} />
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <CheckoutStepper {steps} currentStep={1} />
 
 <div class="lg:grid lg:grid-cols-5 lg:gap-8">
   <div class="lg:col-span-3 space-y-8">
@@ -222,6 +314,15 @@
         </div>
       {/if}
 
+      {#if showPaymentRequestButton}
+        <div class="mt-4">
+          <div id="payment-request-button"></div>
+          {#if paymentRequestError}
+            <p class="text-sm text-[var(--color-error)] mt-2">{paymentRequestError}</p>
+          {/if}
+        </div>
+      {/if}
+
       {#if paymentError}
         <p class="text-sm text-[var(--color-error)] mt-2">{paymentError}</p>
       {/if}
@@ -249,4 +350,5 @@
       />
     </div>
   </div>
+</div>
 </div>

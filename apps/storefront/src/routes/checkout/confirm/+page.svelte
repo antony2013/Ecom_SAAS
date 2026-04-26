@@ -1,10 +1,12 @@
 <script lang="ts">
+  /* global Razorpay, Stripe */
   import type { PageData } from './$types.js';
   import CheckoutStepper from '$lib/components/checkout/CheckoutStepper.svelte';
   import OrderSummarySidebar from '$lib/components/checkout/OrderSummarySidebar.svelte';
   import { Button } from '$lib/components/ui/button/index.js';
   import { formatPrice } from '$lib/utils/format.js';
   import { goto } from '$app/navigation';
+  import { getCookie } from '$lib/api/client.js';
 
   let { data }: { data: PageData } = $props();
 
@@ -82,9 +84,13 @@
         body.shippingPostalCode = '00000';
       }
 
+      const csrfToken = getCookie('csrf_token');
       const res = await fetch('/api/v1/customer/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify(body),
       });
@@ -109,7 +115,10 @@
       // For Razorpay / Stripe, create a payment intent after order creation
       const intentRes = await fetch('/api/v1/customer/payments/intent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify({
           orderId,
@@ -202,17 +211,38 @@
     // @ts-expect-error Stripe global from stripe.js
     const stripe = Stripe(intent.publishableKey ?? '');
 
-    stripe.confirmCardPayment(intent.clientSecret, {
-      return_url: `${window.location.origin}/order-confirmed/${orderId}`,
-    }).then((result: any) => {
-      if (result.error) {
-        error = result.error.message || 'Payment failed';
-      } else {
-        sessionStorage.removeItem('checkout_shipping');
-        sessionStorage.removeItem('checkout_payment');
-        goto(`/order-confirmed/${orderId}`);
-      }
-    });
+    const storedPaymentMethodId = typeof window !== 'undefined' ? sessionStorage.getItem('checkout_payment_method_id') : null;
+    const usePaymentRequest = typeof window !== 'undefined' && sessionStorage.getItem('checkout_use_payment_request') === 'true';
+
+    if (usePaymentRequest && storedPaymentMethodId) {
+      stripe.confirmCardPayment(intent.clientSecret, {
+        payment_method: storedPaymentMethodId,
+      }).then((result: any) => {
+        if (result.error) {
+          error = result.error.message || 'Payment failed';
+        } else {
+          sessionStorage.removeItem('checkout_shipping');
+          sessionStorage.removeItem('checkout_payment');
+          sessionStorage.removeItem('checkout_payment_method_id');
+          sessionStorage.removeItem('checkout_use_payment_request');
+          goto(`/order-confirmed/${orderId}`);
+        }
+      });
+    } else {
+      stripe.confirmCardPayment(intent.clientSecret, {
+        return_url: `${window.location.origin}/order-confirmed/${orderId}`,
+      }).then((result: any) => {
+        if (result.error) {
+          error = result.error.message || 'Payment failed';
+        } else {
+          sessionStorage.removeItem('checkout_shipping');
+          sessionStorage.removeItem('checkout_payment');
+          sessionStorage.removeItem('checkout_payment_method_id');
+          sessionStorage.removeItem('checkout_use_payment_request');
+          goto(`/order-confirmed/${orderId}`);
+        }
+      });
+    }
   }
 </script>
 
@@ -220,7 +250,8 @@
   <title>Confirm Order | Checkout</title>
 </svelte:head>
 
-<CheckoutStepper {steps} currentStep={2} />
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <CheckoutStepper {steps} currentStep={2} />
 
 <div class="lg:grid lg:grid-cols-5 lg:gap-8">
   <div class="lg:col-span-3 space-y-6">
@@ -283,4 +314,5 @@
       />
     </div>
   </div>
+</div>
 </div>

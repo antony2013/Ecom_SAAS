@@ -241,6 +241,7 @@ export const paymentService = {
         amount: result.amount,
         currency: result.currency,
         clientSecret: stripeIntent.client_secret,
+        publishableKey: config!.publishable_key,
       };
     }
 
@@ -480,6 +481,15 @@ async function createStripePaymentIntent(
   // Stripe expects lowercase 3-letter currency codes
   const cur = currency.toLowerCase();
 
+  const params = new URLSearchParams({
+    amount: String(amountCents),
+    currency: cur,
+    'metadata[orderId]': metadataOrderId,
+  });
+  params.append('payment_method_types[0]', 'card');
+  params.append('payment_method_types[1]', 'apple_pay');
+  params.append('payment_method_types[2]', 'google_pay');
+
   const response = await fetch('https://api.stripe.com/v1/payment_intents', {
     method: 'POST',
     headers: {
@@ -487,12 +497,7 @@ async function createStripePaymentIntent(
       'Authorization': `Bearer ${config.secret_key}`,
       'Idempotency-Key': idempotencyKey,
     },
-    body: new URLSearchParams({
-      amount: String(amountCents),
-      currency: cur,
-      'metadata[orderId]': metadataOrderId,
-      'automatic_payment_methods[enabled]': 'true',
-    }).toString(),
+    body: params.toString(),
   });
 
   if (!response.ok) {
