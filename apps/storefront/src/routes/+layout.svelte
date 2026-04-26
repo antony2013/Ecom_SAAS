@@ -4,8 +4,15 @@
   import StoreHeader from '$lib/components/layout/StoreHeader.svelte';
   import StoreFooter from '$lib/components/layout/StoreFooter.svelte';
   import { Toaster } from '$lib/components/ui/sonner';
+  import CookieBanner from '$lib/components/CookieBanner.svelte';
+  import { refreshCart } from '$lib/stores/cart.svelte';
+  import { onMount } from 'svelte';
 
   let { data, children } = $props();
+
+  onMount(() => {
+    refreshCart();
+  });
 </script>
 
 <ThemeProvider
@@ -20,7 +27,7 @@
       showWishlist={data.store?.showWishlist ?? true}
       isLoggedIn={data.isLoggedIn ?? false}
     />
-    <main class="flex-1">
+    <main class="flex-1 bg-[var(--color-bg)]">
       {@render children()}
     </main>
     <StoreFooter
@@ -33,3 +40,4 @@
   </div>
 </ThemeProvider>
 <Toaster />
+<CookieBanner />
