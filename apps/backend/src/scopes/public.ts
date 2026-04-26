@@ -4,6 +4,7 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { generateCsrfToken, setCsrfCookie, validateCsrf } from '../lib/csrf.js';
 import seoPublicRoutes from '../modules/seo/seo.route.public.js';
+import consentPublicRoutes from '../modules/consent/consent.route.public.js';
 
 export default async function publicScope(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
   // CSRF: set cookie on safe methods if missing; validate on mutating methods
@@ -71,4 +72,5 @@ export default async function publicScope(fastify: FastifyInstance, _opts: Fasti
   fastify.register(import('../modules/currency/currency.route.public.js'), { prefix: '/currency' });
   fastify.register(import('../modules/payment/payment.route.public.js'), { prefix: '/payments' });
   fastify.register(seoPublicRoutes, { prefix: '' });
+  fastify.register(consentPublicRoutes, { prefix: '/cookie-consent' });
 }

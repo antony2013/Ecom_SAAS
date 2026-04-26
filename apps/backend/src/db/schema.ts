@@ -1162,3 +1162,22 @@ export const returnItemsRelations = relations(returnItems, ({ one }) => ({
   return: one(returns, { fields: [returnItems.returnId], references: [returns.id] }),
   orderItem: one(orderItems, { fields: [returnItems.orderItemId], references: [orderItems.id] }),
 }));
+
+// ─── Cookie Consent ───
+
+export const cookieConsents = pgTable("cookie_consents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  storeId: uuid("store_id").notNull().references(() => stores.id),
+  customerId: uuid("customer_id").references(() => customers.id),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  essential: boolean("essential").default(true).notNull(),
+  analytics: boolean("analytics").default(false).notNull(),
+  marketing: boolean("marketing").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const cookieConsentsRelations = relations(cookieConsents, ({ one }) => ({
+  store: one(stores, { fields: [cookieConsents.storeId], references: [stores.id] }),
+  customer: one(customers, { fields: [cookieConsents.customerId], references: [customers.id] }),
+}));
